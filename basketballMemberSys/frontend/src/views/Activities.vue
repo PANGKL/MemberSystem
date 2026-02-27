@@ -356,7 +356,6 @@ onMounted(() => {
 <style scoped>
 .activities-container {
   padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
 }
 
@@ -376,6 +375,8 @@ onMounted(() => {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  margin-bottom: 30px;
+  padding: 0 20px;
 }
 
 .activities-grid {
@@ -406,7 +407,7 @@ onMounted(() => {
 }
 
 .activity-title {
-  font-size: 18px;
+  font-size: 25px;
   font-weight: 600;
   color: #1e293b;
   flex: 1;
@@ -464,14 +465,14 @@ onMounted(() => {
   font-weight: 600;
   color: #475569;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .description-text {
   color: #64748b;
   line-height: 1.6;
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   padding: 8px 0;
 }
 

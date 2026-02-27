@@ -37,7 +37,7 @@
 
             <el-table-column label="人數" width="100">
               <template #default="{ row }">
-                <el-progress :percentage="(row.currentParticipants / row.maxParticipants) * 100" />
+                <el-progress :percentage="((row.currentParticipants / row.maxParticipants) * 100).toFixed(1)" />
                 <small style="color: #999;">{{ row.currentParticipants }} / {{ row.maxParticipants }}</small>
               </template>
             </el-table-column>
@@ -104,7 +104,7 @@
                 <template #default="{ row }">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <el-progress 
-                      :percentage="(row.currentParticipants / row.maxParticipants) * 100" 
+                      :percentage="parseFloat(((row.currentParticipants / row.maxParticipants) * 100).toFixed(1))" 
                       :status="(row.currentParticipants / row.maxParticipants) >= 1 ? 'exception' : undefined"
                       style="flex: 1;" />
                     <span style="min-width: 60px;">{{ row.currentParticipants }}/{{ row.maxParticipants }}</span>
@@ -381,7 +381,6 @@ onMounted(() => {
 <style scoped>
 .admin-activities-container {
   padding: 20px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   min-height: 100vh;
 }
 
@@ -396,7 +395,8 @@ onMounted(() => {
 
 .admin-header h1 {
   font-size: 28px;
-  color: #1e40af;
+  color: #000000;
+  stroke: 1px #000000;
   margin: 0;
 }
 

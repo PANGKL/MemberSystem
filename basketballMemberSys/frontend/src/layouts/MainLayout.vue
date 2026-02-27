@@ -39,6 +39,7 @@
       </div>
     </header>
 
+
     <main class="layout-body">
       <div class="content-container">
         <router-view />
@@ -148,7 +149,7 @@ onMounted(refreshProfile);
   display: flex;
   gap: 20px;
   flex: 1;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 @media (max-width: 767px) {
@@ -259,5 +260,44 @@ onMounted(refreshProfile);
   .content-container {
     padding: 2rem;
   }
+}
+
+/* dark mode support */
+.dark-mode .main-layout {
+  background-color: #1e1e2f;
+  color: #e0e0e0;
+}
+.dark-mode .global-header {
+  background-color: #2a2a3e;
+  border-bottom-color: #444;
+}
+.dark-mode .nav-link {
+  color: #c0c0c0;
+}
+.dark-mode .nav-link.router-link-active {
+  color: #ffffff;
+  background-color: #444;
+}
+.dark-mode .user-info {
+  color: #e0e0e0;
+}
+.dark-mode .admin-sidebar {
+  background-color: #2a2a3e;
+  color: #e0e0e0;
+}
+
+
+/* dark toggle position */
+.dark-toggle {
+  position: absolute;
+  right: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* stronger text color override for dark mode */
+.dark-mode .main-layout,
+.dark-mode .main-layout * {
+  color: #e0e0e0 !important;
 }
 </style>

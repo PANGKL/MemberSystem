@@ -53,40 +53,35 @@
           <el-card class="right-card" shadow="never">
             <template #header>
               <div class="card-header">
-                <h3>學員與報名資料</h3>
-                <el-button type="primary" size="small" @click="showAddChildDialog = true">
-                  <Plus class="w-4 h-4 mr-1" />
-                  新增學員
-                </el-button>
+                <h3>我的學員</h3>
               </div>
             </template>
             <div v-if="profile.children && profile.children.length > 0" class="children-list">
               <div v-for="child in profile.children" :key="child.id" class="child-item">
                 <div class="child-info">
-                  <span class="child-name">{{ child.name }}</span>
-                  <span class="child-meta">{{ child.ageGroup }} • {{ child.skillLevel }}</span>
+                  <div class="child-header">
+                    <span class="child-name">{{ child.name }}</span>
+                    <el-tag type="info" size="small">{{ child.ageGroup }}</el-tag>
+                  </div>
+                  <div class="child-details">
+                    <span class="detail-item">
+                      <span class="label">出生日期:</span>
+                      <span class="value">{{ child.dateOfBirth || 'N/A' }}</span>
+                    </span>
+                    <span class="detail-item">
+                      <span class="label">技能等級:</span>
+                      <span class="value">{{ child.skillLevel }}</span>
+                    </span>
+                  </div>
                 </div>
-                <el-button type="info" link @click="handleEditChild(child)">編輯</el-button>
               </div>
             </div>
             <el-empty v-else description="目前還沒有學員資料" :image-size="60" />
-            <el-divider />
-            <div class="recent-activities">
-              <h4>最近報名紀錄</h4>
-              <el-empty description="即將推出報名詳情查詢" :image-size="60" />
-            </div>
           </el-card>
         </div>
       </div>
 
-    <!-- 新增學員對話框 (略) -->
-    <el-dialog v-model="showAddChildDialog" title="新增學員資料" width="90%" style="max-width: 400px">
-      <p class="text-slate-500 text-sm mb-4">此功能正在開發中，請稍候。</p>
-      <template #footer>
-        <el-button @click="showAddChildDialog = false">取消</el-button>
-        <el-button type="primary" disabled>確認</el-button>
-      </template>
-    </el-dialog>
+
 
     <el-dialog v-model="showAvatarDialog" title="選擇頭像圖標" width="90%" style="max-width: 480px">
       <div class="avatar-grid">
@@ -116,14 +111,13 @@ import api from '../api';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { 
   ArrowLeft, UserCircle, Download, Trash2, 
-  Plus, User, Smile, Dribbble 
+  User, Smile, Dribbble 
 } from 'lucide-vue-next';
 
 const router = useRouter();
 const userStore = useUserStore();
 const loading = ref(false);
 const profile = ref(null);
-const showAddChildDialog = ref(false);
 const showAvatarDialog = ref(false);
 const selectedAvatarKey = ref('UserCircle');
 const avatarChoices = [
@@ -318,7 +312,7 @@ onMounted(fetchProfile);
 .child-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 1rem;
   border-bottom: 1px solid #f1f5f9;
 }
@@ -330,16 +324,42 @@ onMounted(fetchProfile);
 .child-info {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  gap: 0.5rem;
+}
+
+.child-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .child-name {
   font-weight: 700;
   color: #1e293b;
+  font-size: 1rem;
 }
 
-.child-meta {
+.child-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
   font-size: 0.85rem;
   color: #64748b;
+}
+
+.detail-item {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detail-item .label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.detail-item .value {
+  color: #1e293b;
 }
 
 .w-full { width: 100%; }

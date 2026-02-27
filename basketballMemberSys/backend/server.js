@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import authRoutes from './routes/authRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import activityRoutes from './routes/activityRoutes.js'
+import childRoutes from './routes/childRoutes.js'
 
 dotenv.config()
 
@@ -18,6 +19,7 @@ app.use(express.json())
 app.use('/api/auth', authRoutes)
 app.use('/api/user', userRoutes)
 app.use('/api/activities', activityRoutes)
+app.use('/api/children', childRoutes)
 
 // 健康檢查 (Health Check)
 app.get('/', (req, res) => {
