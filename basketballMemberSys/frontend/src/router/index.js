@@ -3,7 +3,9 @@ import { useUserStore } from '../stores/userStore';
 import Home from '../views/Home.vue';
 import Auth from '../views/Auth.vue';
 import Profile from '../views/Profile.vue';
+import Activities from '../views/Activities.vue';
 import AdminUsers from '../views/AdminUsers.vue';
+import AdminActivities from '../views/AdminActivities.vue';
 import MainLayout from '../layouts/MainLayout.vue';
 
 const routes = [
@@ -23,9 +25,20 @@ const routes = [
         component: Profile
       },
       {
+        path: 'activities',
+        name: 'Activities',
+        component: Activities
+      },
+      {
         path: 'admin/users',
         name: 'AdminUsers',
         component: AdminUsers,
+        meta: { requiresAdmin: true }
+      },
+      {
+        path: 'admin/activities',
+        name: 'AdminActivities',
+        component: AdminActivities,
         meta: { requiresAdmin: true }
       }
     ]

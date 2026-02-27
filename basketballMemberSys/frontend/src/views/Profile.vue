@@ -12,7 +12,8 @@
         <div class="profile-sidebar">
           <el-card class="user-card" shadow="never">
             <div class="user-avatar">
-              <UserCircle class="w-20 h-20 text-blue-500" />
+              <component :is="selectedIcon" class="w-20 h-20 text-blue-500" />
+              <el-button size="small" plain class="mt-2" @click="showAvatarDialog = true">變更頭像</el-button>
             </div>
             <div class="user-basic-info">
               <h3>{{ profile.name }}</h3>
@@ -49,17 +50,16 @@
 
         <!-- 右側：子女管理與其他設定 -->
         <div class="profile-content">
-          <el-card class="children-card" shadow="never">
+          <el-card class="right-card" shadow="never">
             <template #header>
               <div class="card-header">
-                <h3>學員資料 (Children)</h3>
+                <h3>學員與報名資料</h3>
                 <el-button type="primary" size="small" @click="showAddChildDialog = true">
                   <Plus class="w-4 h-4 mr-1" />
                   新增學員
                 </el-button>
               </div>
             </template>
-
             <div v-if="profile.children && profile.children.length > 0" class="children-list">
               <div v-for="child in profile.children" :key="child.id" class="child-item">
                 <div class="child-info">
@@ -70,14 +70,11 @@
               </div>
             </div>
             <el-empty v-else description="目前還沒有學員資料" :image-size="60" />
-          </el-card>
-
-          <!-- 報名紀錄簡述 -->
-          <el-card class="recent-activities-card" shadow="never">
-            <template #header>
-              <h3>最近報名紀錄</h3>
-            </template>
-            <el-empty description="即將推出報名詳情查詢" :image-size="60" />
+            <el-divider />
+            <div class="recent-activities">
+              <h4>最近報名紀錄</h4>
+              <el-empty description="即將推出報名詳情查詢" :image-size="60" />
+            </div>
           </el-card>
         </div>
       </div>
@@ -90,18 +87,36 @@
         <el-button type="primary" disabled>確認</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showAvatarDialog" title="選擇頭像圖標" width="90%" style="max-width: 480px">
+      <div class="avatar-grid">
+        <el-button
+          v-for="opt in avatarChoices"
+          :key="opt.key"
+          class="avatar-button"
+          plain
+          @click="setAvatar(opt.key)"
+        >
+          <component :is="opt.component" class="w-8 h-8" />
+          <span class="avatar-label">{{ opt.label }}</span>
+        </el-button>
+      </div>
+      <template #footer>
+        <el-button @click="showAvatarDialog = false">關閉</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import api from '../api';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { 
   ArrowLeft, UserCircle, Download, Trash2, 
-  Plus 
+  Plus, User, Smile, Dribbble 
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -109,17 +124,40 @@ const userStore = useUserStore();
 const loading = ref(false);
 const profile = ref(null);
 const showAddChildDialog = ref(false);
+const showAvatarDialog = ref(false);
+const selectedAvatarKey = ref('UserCircle');
+const avatarChoices = [
+  { key: 'UserCircle', component: UserCircle, label: '預設' },
+  { key: 'User', component: User, label: '簡約' },
+  { key: 'Smile', component: Smile, label: '微笑' },
+  { key: 'Dribbble', component: Dribbble, label: '球隊風格' },
+];
+const selectedIcon = computed(() => {
+  const found = avatarChoices.find(a => a.key === selectedAvatarKey.value);
+  return found ? found.component : UserCircle;
+});
 
 const fetchProfile = async () => {
   loading.value = true;
   try {
     const data = await api.get('/user/profile');
     profile.value = data;
+    const saved = localStorage.getItem(`avatarChoice:${profile.value.id}`);
+    if (saved) selectedAvatarKey.value = saved;
   } catch (error) {
     console.error('Failed to fetch profile:', error);
   } finally {
     loading.value = false;
   }
+};
+
+const setAvatar = (key) => {
+  selectedAvatarKey.value = key;
+  if (profile.value?.id) {
+    localStorage.setItem(`avatarChoice:${profile.value.id}`, key);
+  }
+  ElMessage.success('頭像已更新');
+  showAvatarDialog.value = false;
 };
 
 const handleExportData = async () => {
@@ -172,13 +210,13 @@ onMounted(fetchProfile);
 
 .profile-grid {
   display: grid;
-  grid-template-cols: 1fr;
+  grid-template-cols: 3fr 7fr;
   gap: 1.5rem;
 }
 
 @media (min-width: 768px) {
   .profile-grid {
-    grid-template-cols: 300px 1fr;
+    grid-template-cols: 3fr 7fr;
     gap: 2rem;
   }
 }
@@ -191,6 +229,23 @@ onMounted(fetchProfile);
 
 .user-avatar {
   margin-bottom: 1rem;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.avatar-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.avatar-label {
+  font-size: 0.85rem;
+  color: #475569;
 }
 
 .user-basic-info h3 {
@@ -256,7 +311,7 @@ onMounted(fetchProfile);
   font-size: 1.1rem;
 }
 
-.children-card, .recent-activities-card {
+.children-card, .recent-activities-card, .right-card {
   border-radius: 16px;
 }
 

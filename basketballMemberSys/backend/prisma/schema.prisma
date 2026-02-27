@@ -42,8 +42,12 @@ model Child {
 model Activity {
   id            Int      @id @default(autoincrement())
   title         String
-  type          String   // COURSE, TRAINING, COMPETITION
+  type          String   // COMPETITION, TRAINING, SPECIAL_EVENT, COURSE
   description   String?
+  date          String   // YYYY-MM-DD format
+  time          String   // HH:MM format
+  location      String
+  price         Float    @default(0)
   dateTime      DateTime
   maxParticipants Int
   currentParticipants Int @default(0)

@@ -20,6 +20,18 @@ router.get('/profile', authenticateToken, async (req, res) => {
   }
 })
 
+// 獲取用戶孩子列表 (Get User's Children)
+router.get('/children', authenticateToken, async (req, res) => {
+  try {
+    const children = await prisma.child.findMany({
+      where: { parentId: req.user.userId }
+    })
+    res.json(children)
+  } catch (error) {
+    res.status(500).json({ message: error.message })
+  }
+})
+
 // GDPR: 導出個人資料 (Export Data)
 router.get('/export-data', authenticateToken, async (req, res) => {
   try {

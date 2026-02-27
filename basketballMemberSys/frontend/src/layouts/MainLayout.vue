@@ -7,6 +7,11 @@
           <h1>球會會員系統</h1>
         </div>
         
+        <nav class="header-nav" v-if="userStore.isAuthenticated">
+          <router-link to="/activities" class="nav-link">活動報名</router-link>
+          <router-link v-if="userStore.isAdmin" to="/admin/activities" class="nav-link">活動管理</router-link>
+        </nav>
+        
         <div class="user-info" v-if="userStore.user">
           <div class="points-badge">
             <CircleStar class="badge-icon" />
@@ -96,6 +101,7 @@ onMounted(refreshProfile);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20px;
 }
 
 .logo {
@@ -103,6 +109,7 @@ onMounted(refreshProfile);
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 @media (min-width: 768px) {
@@ -137,10 +144,44 @@ onMounted(refreshProfile);
   }
 }
 
+.header-nav {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+  justify-content: center;
+}
+
+@media (max-width: 767px) {
+  .header-nav {
+    display: none;
+  }
+}
+
+.nav-link {
+  color: #475569;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.nav-link:hover {
+  color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.nav-link.router-link-active {
+  color: #2563eb;
+  background-color: #eff6ff;
+  font-weight: 600;
+}
+
 .user-info {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 @media (min-width: 768px) {
