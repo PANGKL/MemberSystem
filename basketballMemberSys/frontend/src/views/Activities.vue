@@ -1,108 +1,165 @@
 <template>
   <div class="activities-view">
     <div class="section-header">
-      <h2>所有活動 (All Activities)</h2>
+      <h2>活動中心 (Activities Center)</h2>
       <el-button type="primary" @click="fetchActivities" circle>
         <RefreshCw class="w-4 h-4" />
       </el-button>
-      <el-button v-if="userStore.isAdmin" type="success" @click="showCreateActivityDialog = true">
-        新增活動 (Add Activity)
-      </el-button>
     </div>
 
-    <div class="activity-grid">
-      <el-card v-for="activity in activities" :key="activity.id" class="activity-card" shadow="hover">
-        <template #header>
-          <div class="activity-card-header">
-            <span class="activity-type" :class="activity.type.toLowerCase()">{{ activity.type }}</span>
-            <h3 class="activity-title">{{ activity.title }}</h3>
-          </div>
-        </template>
+    <el-tabs v-model="activeTab" class="activities-tabs">
+      <el-tab-pane label="新活動 (New)" name="new">
+        <div class="activity-grid">
+          <el-card v-for="activity in newActivities" :key="activity.id" class="activity-card" shadow="hover">
+            <template #header>
+              <div class="activity-card-header">
+                <span class="activity-type" :class="activity.type.toLowerCase()">{{ activity.type }}</span>
+                <h3 class="activity-title">{{ activity.title }}</h3>
+              </div>
+            </template>
 
-        <div class="activity-info">
-          <div class="info-item">
-            <Calendar class="w-4 h-4" />
-            <span>{{ formatDate(activity.date_time) }}</span>
-          </div>
-          <div class="info-item">
-            <MapPin class="w-4 h-4" />
-            <span>{{ activity.location }}</span>
-          </div>
-          <div class="info-item">
-            <DollarSign class="w-4 h-4" />
-            <span>{{ activity.price }} HKD</span>
-          </div>
-          <div class="info-item">
-            <Users class="w-4 h-4" />
-            <span>人數限制: {{ activity.current_participants }}/{{ activity.max_participants }}</span>
-          </div>
-          <p class="activity-desc">{{ activity.description }}</p>
+            <div class="activity-info">
+              <div class="info-item">
+                <Calendar class="w-4 h-4" />
+                <span>{{ formatDate(activity.date_time) }}</span>
+              </div>
+              <div class="info-item">
+                <MapPin class="w-4 h-4" />
+                <span>{{ activity.location }}</span>
+              </div>
+              <div class="info-item">
+                <DollarSign class="w-4 h-4" />
+                <span>{{ activity.price }} HKD</span>
+              </div>
+              <div class="info-item">
+                <Users class="w-4 h-4" />
+                <span>人數限制: {{ activity.current_participants }}/{{ activity.max_participants }}</span>
+              </div>
+              <p class="activity-desc">{{ activity.description }}</p>
+            </div>
+
+            <div class="activity-footer">
+              <el-button
+                type="primary"
+                :disabled="activity.current_participants >= activity.max_participants"
+                @click="handleRegister(activity)"
+                block
+              >
+                {{ activity.current_participants >= activity.max_participants ? '已滿額 (Full)' : '立即報名 (Register)' }}
+              </el-button>
+            </div>
+          </el-card>
         </div>
+      </el-tab-pane>
 
-        <div class="activity-footer">
-          <el-button
-            type="primary"
-            :disabled="activity.current_participants >= activity.max_participants"
-            @click="handleRegister(activity)"
-            block
-          >
-            {{ activity.current_participants >= activity.max_participants ? '已滿額 (Full)' : '立即報名 (Register)' }}
-          </el-button>
-          <div v-if="userStore.isAdmin" class="admin-actions">
-            <el-button type="warning" size="small" @click="handleEditActivity(activity)">編輯</el-button>
-            <el-button type="danger" size="small" @click="handleDeleteActivity(activity)">刪除</el-button>
-          </div>
+      <el-tab-pane label="待確認" name="pending">
+        <div class="registration-list" v-if="pendingRegistrations.length > 0">
+          <el-card v-for="reg in pendingRegistrations" :key="reg.id" class="registration-card" shadow="hover">
+            <div class="registration-content">
+              <div class="activity-summary">
+                <h4>{{ reg.activity?.title }}</h4>
+                <p><Calendar class="w-3 h-3 inline mr-1" />{{ formatDate(reg.activity?.date_time) }}</p>
+                <p><User class="w-3 h-3 inline mr-1" />學員: {{ reg.child?.name }}</p>
+              </div>
+              <div class="registration-status-action">
+                <el-tag :type="getStatusTagType(reg.status)">
+                  {{ getStatusLabel(reg.status) }}
+                </el-tag>
+                <div class="mt-2" v-if="reg.status === 'PENDING_PAYMENT'">
+                  <el-button type="warning" size="small" @click="openPaymentDialog(reg)">上傳收據</el-button>
+                </div>
+                <div class="mt-2" v-if="reg.status === 'AWAITING_APPROVAL'">
+                  <small class="text-gray-500">等待管理員核實中...</small>
+                </div>
+              </div>
+            </div>
+          </el-card>
         </div>
-      </el-card>
-    </div>
+        <el-empty v-else description="尚無待處理的報名" />
+      </el-tab-pane>
 
-    <!-- Create/Edit Activity Dialog -->
+      <el-tab-pane label="已報名" name="confirmed">
+        <div class="registration-list" v-if="confirmedRegistrations.length > 0">
+          <el-card v-for="reg in confirmedRegistrations" :key="reg.id" class="registration-card success" shadow="hover">
+            <div class="registration-content">
+              <div class="activity-summary">
+                <h4>{{ reg.activity?.title }}</h4>
+                <p><Calendar class="w-3 h-3 inline mr-1" />{{ formatDate(reg.activity?.date_time) }}</p>
+                <p><User class="w-3 h-3 inline mr-1" />學員: {{ reg.child?.name }}</p>
+              </div>
+              <div class="registration-status-action">
+                <el-tag type="success">
+                  {{ getStatusLabel(reg.status) }}
+                </el-tag>
+                <div class="mt-2">
+                  <small class="text-green-600">祝你活動愉快！</small>
+                </div>
+              </div>
+            </div>
+          </el-card>
+        </div>
+        <el-empty v-else description="尚無成功的報名記錄" />
+      </el-tab-pane>
+
+      <el-tab-pane label="過往活動 (Past)" name="past">
+        <div class="activity-grid">
+          <el-card v-for="activity in pastActivities" :key="activity.id" class="activity-card past" shadow="hover">
+            <template #header>
+              <div class="activity-card-header">
+                <span class="activity-type" :class="activity.type.toLowerCase()">{{ activity.type }}</span>
+                <h3 class="activity-title">{{ activity.title }}</h3>
+              </div>
+            </template>
+            <div class="activity-info">
+              <div class="info-item">
+                <Calendar class="w-4 h-4" />
+                <span>{{ formatDate(activity.date_time) }}</span>
+              </div>
+              <p class="activity-desc">{{ activity.description }}</p>
+            </div>
+            <div class="activity-footer">
+              <el-button disabled block>活動已結束</el-button>
+            </div>
+          </el-card>
+        </div>
+        <el-empty v-if="pastActivities.length === 0" description="尚無過往活動" />
+      </el-tab-pane>
+    </el-tabs>
+
+    <!-- Payment Upload Dialog -->
     <el-dialog
-      v-model="showCreateActivityDialog"
-      :title="isEditMode ? '編輯活動' : '新增活動'"
-      width="500px"
-      @close="resetActivityForm"
+      v-model="showPaymentDialog"
+      title="上傳繳費收據 (Upload Receipt)"
+      width="400px"
     >
-      <el-form :model="activityForm" :rules="activityRules" ref="activityFormRef" label-width="100px">
-        <el-form-item label="活動名稱" prop="title">
-          <el-input v-model="activityForm.title"></el-input>
+      <el-form :model="paymentForm" label-width="100px">
+        <el-form-item label="收據編號" required>
+          <el-input v-model="paymentForm.reference" placeholder="請輸入轉賬編號或參考號"></el-input>
         </el-form-item>
-        <el-form-item label="活動類型" prop="type">
-          <el-select v-model="activityForm.type" placeholder="選擇活動類型">
-            <el-option label="Course" value="COURSE"></el-option>
-            <el-option label="Training" value="TRAINING"></el-option>
-            <el-option label="Competition" value="COMPETITION"></el-option>
-            <el-option label="Special Event" value="SPECIAL_EVENT"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="日期時間" prop="date_time">
-          <el-date-picker
-            v-model="activityForm.date_time"
-            type="datetime"
-            placeholder="選擇日期時間"
-            value-format="YYYY-MM-DDTHH:mm:ss"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item label="地點" prop="location">
-          <el-input v-model="activityForm.location"></el-input>
-        </el-form-item>
-        <el-form-item label="價格" prop="price">
-          <el-input-number v-model="activityForm.price" :min="0"></el-input-number>
-        </el-form-item>
-        <el-form-item label="最大人數" prop="max_participants">
-          <el-input-number v-model="activityForm.max_participants" :min="1"></el-input-number>
-        </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input type="textarea" v-model="activityForm.description"></el-input>
+        <el-form-item label="收據圖片" required>
+          <el-upload
+            class="receipt-upload"
+            action="#"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :limit="1"
+            accept="image/*"
+          >
+            <template #trigger>
+              <el-button type="primary">選擇圖片</el-button>
+            </template>
+            <template #tip>
+              <div class="el-upload__tip">請上傳清晰的繳費截圖或收據圖片</div>
+            </template>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreateActivityDialog = false">取消</el-button>
-        <el-button type="primary" @click="isEditMode ? updateActivity() : createActivity()">
-          {{ isEditMode ? '更新' : '新增' }}
-        </el-button>
+        <el-button @click="showPaymentDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitPayment" :loading="uploading">確認上傳</el-button>
       </template>
     </el-dialog>
+
 
     <!-- Register Activity Dialog -->
     <el-dialog
@@ -129,51 +186,136 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import api from '../api';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Calendar, Users, RefreshCw, MapPin, DollarSign } from 'lucide-vue-next';
+import { Calendar, Users, RefreshCw, MapPin, DollarSign, User } from 'lucide-vue-next';
 
 const router = useRouter();
 const userStore = useUserStore();
 const activities = ref([]);
-const showCreateActivityDialog = ref(false);
+const myRegistrations = ref([]);
+const activeTab = ref('new');
+
+const showPaymentDialog = ref(false);
+const uploading = ref(false);
+const paymentForm = reactive({
+  registrationId: null,
+  reference: '',
+  file: null
+});
+
 const showRegisterActivityDialog = ref(false);
-const isEditMode = ref(false);
-const currentEditingActivityId = ref(null);
 const selectedActivity = ref(null);
 const selectedChildId = ref(null);
 
-const activityFormRef = ref(null);
-const activityForm = reactive({
-  title: '',
-  type: 'COURSE',
-  date_time: '',
-  location: '',
-  price: 0,
-  max_participants: 1,
-  description: '',
+// 分類活動
+const newActivities = computed(() => {
+  const now = new Date();
+  return activities.value.filter(a => new Date(a.date_time) > now);
 });
 
-const activityRules = reactive({
-  title: [{ required: true, message: '請輸入活動名稱', trigger: 'blur' }],
-  type: [{ required: true, message: '請選擇活動類型', trigger: 'change' }],
-  date_time: [{ required: true, message: '請選擇日期時間', trigger: 'change' }],
-  location: [{ required: true, message: '請輸入活動地點', trigger: 'blur' }],
-  price: [{ required: true, message: '請輸入活動價格', trigger: 'blur' }],
-  max_participants: [{ required: true, message: '請輸入最大人數', trigger: 'blur' }],
-  description: [{ required: true, message: '請輸入活動描述', trigger: 'blur' }],
+const pastActivities = computed(() => {
+  const now = new Date();
+  return activities.value.filter(a => new Date(a.date_time) <= now);
+});
+
+const pendingRegistrations = computed(() => {
+  return myRegistrations.value.filter(reg => 
+    reg.status === 'PENDING_PAYMENT' || reg.status === 'AWAITING_APPROVAL'
+  );
+});
+
+const confirmedRegistrations = computed(() => {
+  return myRegistrations.value.filter(reg => reg.status === 'CONFIRMED');
 });
 
 const fetchActivities = async () => {
   try {
-    const data = await api.get('/activities');
-    activities.value = data;
+    const data = await api.get('/activities/');
+    activities.value = data.map(activity => ({
+      ...activity,
+      date_time: activity.date_time || `${activity.date}T${activity.time}`,
+      current_participants: activity.currentParticipants ?? activity.current_participants ?? 0,
+      max_participants: activity.maxParticipants ?? activity.max_participants ?? 0,
+      price: Number(activity.price) || 0
+    }));
   } catch (error) {
     console.error('Failed to fetch activities:', error);
-    ElMessage.error('未能載入活動列表 (Failed to load activities list)');
+    ElMessage.error('未能載入活動列表');
+  }
+};
+
+const fetchMyRegistrations = async () => {
+  try {
+    const data = await api.get('/activities/registrations/');
+    myRegistrations.value = data.map(reg => ({
+      ...reg,
+      activity: reg.activity ? {
+        ...reg.activity,
+        date_time: reg.activity.date_time || `${reg.activity.date}T${reg.activity.time}`
+      } : null
+    }));
+  } catch (error) {
+    console.error('Failed to fetch registrations:', error);
+  }
+};
+
+const getStatusLabel = (status) => {
+  const labels = {
+    'PENDING_PAYMENT': '待繳費',
+    'AWAITING_APPROVAL': '已報名 (待核實)',
+    'CONFIRMED': '已繳費 (報名成功)',
+    'CANCELLED': '已取消'
+  };
+  return labels[status] || status;
+};
+
+const getStatusTagType = (status) => {
+  const types = {
+    'PENDING_PAYMENT': 'warning',
+    'AWAITING_APPROVAL': 'info',
+    'CONFIRMED': 'success',
+    'CANCELLED': 'danger'
+  };
+  return types[status] || '';
+};
+
+const openPaymentDialog = (reg) => {
+  paymentForm.registrationId = reg.id;
+  paymentForm.reference = '';
+  paymentForm.file = null;
+  showPaymentDialog.value = true;
+};
+
+const handleFileChange = (file) => {
+  paymentForm.file = file.raw;
+};
+
+const submitPayment = async () => {
+  if (!paymentForm.file || !paymentForm.reference) {
+    ElMessage.warning('請填寫完整繳費資訊');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('payment_receipt', paymentForm.file);
+  formData.append('payment_reference', paymentForm.reference);
+
+  uploading.value = true;
+  try {
+    await api.post(`/activities/registrations/${paymentForm.registrationId}/upload_receipt/`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    ElMessage.success('收據上傳成功，請等待審核');
+    showPaymentDialog.value = false;
+    fetchMyRegistrations();
+  } catch (error) {
+    ElMessage.error('上傳失敗');
+  } finally {
+    uploading.value = false;
   }
 };
 
@@ -184,129 +326,46 @@ const formatDate = (dateStr) => {
   });
 };
 
-const resetActivityForm = () => {
-  activityFormRef.value?.resetFields();
-  Object.assign(activityForm, {
-    title: '',
-    type: 'COURSE',
-    date_time: '',
-    location: '',
-    price: 0,
-    max_participants: 1,
-    description: '',
-  });
-  isEditMode.value = false;
-  currentEditingActivityId.value = null;
-};
-
-const createActivity = async () => {
-  if (!activityFormRef.value) return;
-  activityFormRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        await api.post('/activities/', activityForm);
-        ElMessage.success('活動新增成功！');
-        showCreateActivityDialog.value = false;
-        fetchActivities();
-      } catch (error) {
-        console.error('Failed to create activity:', error);
-        ElMessage.error(error.response?.data?.detail || '新增活動失敗，請稍後再試');
-      }
-    }
-  });
-};
-
-const handleEditActivity = (activity) => {
-  isEditMode.value = true;
-  currentEditingActivityId.value = activity.id;
-  Object.assign(activityForm, {
-    title: activity.title,
-    type: activity.type,
-    date_time: activity.date_time,
-    location: activity.location,
-    price: activity.price,
-    max_participants: activity.max_participants,
-    description: activity.description,
-  });
-  showCreateActivityDialog.value = true;
-};
-
-const updateActivity = async () => {
-  if (!activityFormRef.value) return;
-  activityFormRef.value.validate(async (valid) => {
-    if (valid) {
-      try {
-        await api.put(`/activities/${currentEditingActivityId.value}/`, activityForm);
-        ElMessage.success('活動更新成功！');
-        showCreateActivityDialog.value = false;
-        fetchActivities();
-      } catch (error) {
-        console.error('Failed to update activity:', error);
-        ElMessage.error(error.response?.data?.detail || '更新活動失敗，請稍後再試');
-      }
-    }
-  });
-};
-
-const handleDeleteActivity = async (activity) => {
-  try {
-    await ElMessageBox.confirm(
-      `確定要刪除活動 "${activity.title}" 嗎？ (Are you sure you want to delete "${activity.title}"?)`,
-      '確認刪除 (Confirm Deletion)',
-      {
-        confirmButtonText: '確定 (Confirm)',
-        cancelButtonText: '取消 (Cancel)',
-        type: 'warning',
-      }
-    );
-    await api.delete(`/activities/${activity.id}/`);
-    ElMessage.success('活動刪除成功！');
-    fetchActivities();
-  } catch (error) {
-    if (error === 'cancel') {
-      ElMessage.info('已取消刪除 (Deletion cancelled)');
-    } else {
-      console.error('Failed to delete activity:', error);
-      ElMessage.error(error.response?.data?.detail || '刪除活動失敗，請稍後再試');
-    }
-  }
-};
-
 const handleRegister = async (activity) => {
   if (!userStore.isAuthenticated) {
-    ElMessage.warning('請先登入才能報名活動 (Please log in to register for activities)');
+    ElMessage.warning('請先登入才能報名活動');
     router.push('/login');
     return;
   }
   if (!userStore.user?.children || userStore.user.children.length === 0) {
-    ElMessage.warning('您沒有可報名的子女，請先在個人資料頁新增子女 (You have no children to register, please add children in your profile page first)');
+    ElMessage.warning('您沒有可報名的子女，請先在個人資料頁新增子女');
     router.push('/profile');
     return;
   }
   selectedActivity.value = activity;
-  selectedChildId.value = null; // Reset selected child
+  selectedChildId.value = null;
   showRegisterActivityDialog.value = true;
 };
 
 const confirmRegisterActivity = async () => {
   if (!selectedActivity.value || !selectedChildId.value) {
-    ElMessage.warning('請選擇要報名的子女 (Please select a child to register)');
+    ElMessage.warning('請選擇要報名的子女');
     return;
   }
   try {
     await api.post(`/activities/${selectedActivity.value.id}/register/`, { child_id: selectedChildId.value });
-    ElMessage.success('報名成功！');
+    ElMessage.success('報名成功！請前往「待付款/確認」分頁上傳收據。');
     showRegisterActivityDialog.value = false;
-    fetchActivities(); // Refresh activities to update participant count
+    activeTab.value = 'pending';
+    fetchMyRegistrations();
+    fetchActivities();
   } catch (error) {
-    console.error('Failed to register for activity:', error);
-    ElMessage.error(error.response?.data?.detail || '報名失敗，請稍後再試');
+    console.error('Failed to register:', error);
+    ElMessage.error(error.response?.data?.detail || '報名失敗');
   }
 };
 
 onMounted(() => {
   fetchActivities();
-  userStore.syncUserProfile(); // Ensure children data is loaded for registration
+  if (userStore.isAuthenticated) {
+    fetchMyRegistrations();
+    userStore.syncUserProfile();
+  }
 });
 </script>
 

@@ -65,15 +65,55 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     serializer_class = RegistrationSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_serializer_class(self):
+        if self.action in ['update', 'partial_update']:
+            return RegistrationUpdateSerializer
+        return RegistrationSerializer
+
     def get_queryset(self):
         if self.request.user.is_staff:
             return Registration.objects.all()
         return Registration.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
-        # 這裡的創建邏輯應該在 ActivityViewSet 的 register action 中處理
-        # 或者需要更複雜的邏輯來確保活動人數更新等
         serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def upload_receipt(self, request, pk=None):
+        registration = self.get_object()
+        # 只有家長本人或管理員可以上傳
+        if registration.user != request.user and not request.user.is_staff:
+            return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        receipt = request.FILES.get('payment_receipt')
+        reference = request.data.get('payment_reference')
+        
+        if not receipt:
+            return Response({'detail': 'No receipt uploaded'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        registration.payment_receipt = receipt
+        if reference:
+            registration.payment_reference = reference
+        
+        # 上傳後狀態改為待審核
+        registration.status = 'AWAITING_APPROVAL'
+        registration.save()
+        
+        return Response(RegistrationSerializer(registration).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def approve(self, request, pk=None):
+        registration = self.get_object()
+        registration.status = 'CONFIRMED'
+        registration.save()
+        return Response({'status': 'confirmed'})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
+    def reject(self, request, pk=None):
+        registration = self.get_object()
+        registration.status = 'PENDING_PAYMENT' # 退回待繳費
+        registration.save()
+        return Response({'status': 'pending_payment'})
 
 class RewardViewSet(viewsets.ModelViewSet):
     queryset = Reward.objects.all()

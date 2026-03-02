@@ -13,7 +13,57 @@
     <el-tabs v-model="activeTab" class="management-tabs">
       <el-tab-pane label="活動列表" name="list">
         <div class="table-container">
-          <el-table :data="filteredActivities" stripe style="width: 100%">
+          <el-table :data="filteredActivities" stripe style="width: 100%" row-key="id">
+            <el-table-column type="expand">
+              <template #default="{ row }">
+                <div class="registration-details">
+                  <h3>報名詳情 (Registrations)</h3>
+                  <el-table :data="row.registrations" size="small" border row-key="id">
+                    <el-table-column label="學員姓名">
+                      <template #default="scope">
+                        {{ scope.row.child?.name }}
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="家長">
+                      <template #default="scope">
+                        {{ scope.row.user?.name }} ({{ scope.row.user?.username }})
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="狀態" width="120">
+                      <template #default="scope">
+                        <el-tag :type="getStatusTagType(scope.row.status)" size="small">
+                          {{ getStatusLabel(scope.row.status) }}
+                        </el-tag>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="收據" width="100">
+                      <template #default="scope">
+                        <el-button v-if="scope.row.payment_receipt" type="primary" link @click="viewReceipt(scope.row)">查看</el-button>
+                        <span v-else>未上傳</span>
+                      </template>
+                    </el-table-column>
+                    <el-table-column label="操作" width="150">
+                      <template #default="scope">
+                        <el-button-group>
+                          <el-button 
+                            v-if="scope.row.status === 'AWAITING_APPROVAL'" 
+                            type="success" 
+                            size="small" 
+                            @click="approveRegistration(scope.row)"
+                          >確認</el-button>
+                          <el-button 
+                            v-if="scope.row.status === 'AWAITING_APPROVAL'" 
+                            type="danger" 
+                            size="small" 
+                            @click="rejectRegistration(scope.row)"
+                          >駁回</el-button>
+                        </el-button-group>
+                      </template>
+                    </el-table-column>
+                  </el-table>
+                </div>
+              </template>
+            </el-table-column>
             <el-table-column prop="title" label="活動名稱" width="150"></el-table-column>
             
             <el-table-column label="類型" width="100">
@@ -28,16 +78,16 @@
             <el-table-column prop="time" label="時間" width="80"></el-table-column>
             <el-table-column prop="location" label="地點" width="120"></el-table-column>
             
-            <el-table-column label="價錢" width="80">
+            <el-table-column label="價錢" width="100">
               <template #default="{ row }">
-                <span v-if="row.price > 0">${{ row.price.toFixed(2) }}</span>
+                <span v-if="Number(row.price) > 0">${{ Number(row.price).toFixed(1) }}</span>
                 <span v-else style="color: #10b981;">免費</span>
               </template>
             </el-table-column>
 
             <el-table-column label="人數" width="100">
               <template #default="{ row }">
-                <el-progress :percentage="((row.currentParticipants / row.maxParticipants) * 100).toFixed(1)" />
+                <el-progress :percentage="getParticipationPercentage(row)" />
                 <small style="color: #999;">{{ row.currentParticipants }} / {{ row.maxParticipants }}</small>
               </template>
             </el-table-column>
@@ -104,8 +154,8 @@
                 <template #default="{ row }">
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <el-progress 
-                      :percentage="parseFloat(((row.currentParticipants / row.maxParticipants) * 100).toFixed(1))" 
-                      :status="(row.currentParticipants / row.maxParticipants) >= 1 ? 'exception' : undefined"
+                      :percentage="getParticipationPercentage(row)" 
+                      :status="getParticipationRatio(row) >= 1 ? 'exception' : undefined"
                       style="flex: 1;" />
                     <span style="min-width: 60px;">{{ row.currentParticipants }}/{{ row.maxParticipants }}</span>
                   </div>
@@ -130,6 +180,7 @@
 
         <el-form-item label="活動類型" prop="type">
           <el-select v-model="formData.type" placeholder="選擇活動類型">
+            <el-option label="課程" value="COURSE"></el-option>
             <el-option label="比賽" value="COMPETITION"></el-option>
             <el-option label="訓練" value="TRAINING"></el-option>
             <el-option label="特別活動" value="SPECIAL_EVENT"></el-option>
@@ -200,6 +251,21 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 查看收據對話框 -->
+    <el-dialog v-model="showReceiptDialog" title="查看繳費收據" width="500px">
+      <div v-if="selectedRegistration" class="receipt-preview">
+        <p><strong>學員:</strong> {{ selectedRegistration.child?.name }}</p>
+        <p><strong>收據編號:</strong> {{ selectedRegistration.payment_reference }}</p>
+        <div class="receipt-image-container">
+          <el-image 
+            :src="selectedRegistration.payment_receipt" 
+            fit="contain"
+            :preview-src-list="[selectedRegistration.payment_receipt]"
+          ></el-image>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -216,6 +282,9 @@ const activities = ref([])
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const isSubmitting = ref(false)
+
+const showReceiptDialog = ref(false)
+const selectedRegistration = ref(null)
 
 const formData = ref({
   title: '',
@@ -238,7 +307,11 @@ const rules = {
 }
 
 const filteredActivities = computed(() => {
-  return activities.value.sort((a, b) => new Date(a.dateTime) - new Date(b.dateTime))
+  return [...activities.value].sort((a, b) => {
+    const dateA = a.dateTime || a.date_time || `${a.date}T${a.time}`
+    const dateB = b.dateTime || b.date_time || `${b.date}T${b.time}`
+    return new Date(dateA) - new Date(dateB)
+  })
 })
 
 const competitionCount = computed(() => activities.value.filter(a => a.type === 'COMPETITION').length)
@@ -247,6 +320,7 @@ const specialEventCount = computed(() => activities.value.filter(a => a.type ===
 
 const getActivityTypeName = (type) => {
   const typeMap = {
+    'COURSE': '課程',
     'COMPETITION': '比賽',
     'TRAINING': '訓練',
     'SPECIAL_EVENT': '特別活動'
@@ -256,6 +330,7 @@ const getActivityTypeName = (type) => {
 
 const getActivityTypeColor = (type) => {
   const colorMap = {
+    'COURSE': 'info',
     'COMPETITION': 'danger',
     'TRAINING': 'primary',
     'SPECIAL_EVENT': 'success'
@@ -263,12 +338,87 @@ const getActivityTypeColor = (type) => {
   return colorMap[type] || 'info'
 }
 
+const getStatusLabel = (status) => {
+  const labels = {
+    'PENDING_PAYMENT': '待繳費',
+    'AWAITING_APPROVAL': '已報名 (待核實)',
+    'CONFIRMED': '已繳費 (報名成功)',
+    'CANCELLED': '已取消'
+  };
+  return labels[status] || status;
+};
+
+const getStatusTagType = (status) => {
+  const types = {
+    'PENDING_PAYMENT': 'warning',
+    'AWAITING_APPROVAL': 'info',
+    'CONFIRMED': 'success',
+    'CANCELLED': 'danger'
+  };
+  return types[status] || '';
+};
+
+const getParticipationRatio = (activity) => {
+  const max = Number(activity?.maxParticipants)
+  const current = Number(activity?.currentParticipants)
+  if (!max || Number.isNaN(max) || max <= 0) {
+    return 0
+  }
+  if (Number.isNaN(current) || current < 0) {
+    return 0
+  }
+  return current / max
+}
+
+const getParticipationPercentage = (activity) => {
+  const ratio = getParticipationRatio(activity)
+  return Number((ratio * 100).toFixed(1))
+}
+
+const viewReceipt = (reg) => {
+  selectedRegistration.value = reg;
+  showReceiptDialog.value = true;
+};
+
+const approveRegistration = async (reg) => {
+  try {
+    await api.post(`/activities/registrations/${reg.id}/approve/`);
+    ElMessage.success('報名已確認');
+    loadActivities();
+  } catch (error) {
+    ElMessage.error('操作失敗');
+  }
+};
+
+const rejectRegistration = async (reg) => {
+  try {
+    await api.post(`/activities/registrations/${reg.id}/reject/`);
+    ElMessage.success('報名已退回待繳費狀態');
+    loadActivities();
+  } catch (error) {
+    ElMessage.error('操作失敗');
+  }
+};
+
 const loadActivities = async () => {
   try {
-    const response = await api.get('/activities')
-    activities.value = response
+    const response = await api.get('/activities/')
+    const rawData = Array.isArray(response) ? response : (response?.results || [])
+    activities.value = rawData.map(activity => ({
+      ...activity,
+      // 確保前端使用的欄位名稱正確映射
+      currentParticipants: activity.currentParticipants || activity.current_participants || 0,
+      maxParticipants: activity.maxParticipants || activity.max_participants || 0,
+      price: Number(activity.price) || 0,
+      // 如果後端返回的是 date 和 time，確保它們被正確讀取
+      date: activity.date,
+      time: activity.time,
+      dateTime: activity.date_time || activity.dateTime,
+      registrations: activity.registrations || []
+    }))
+    console.log('Activities loaded:', activities.value)
   } catch (error) {
-    ElMessage.error('無法加載活動：' + error.message)
+    ElMessage.error('無法加載活動：' + (error.response?.data?.detail || error.message))
   }
 }
 
@@ -281,6 +431,7 @@ const showCreateDialog = () => {
 const showEditDialog = (activity) => {
   isEditing.value = true
   formData.value = {
+    id: activity.id,
     title: activity.title,
     type: activity.type,
     date: activity.date,
@@ -290,7 +441,6 @@ const showEditDialog = (activity) => {
     maxParticipants: activity.maxParticipants,
     description: activity.description || ''
   }
-  formData.value.id = activity.id
   dialogVisible.value = true
 }
 
@@ -320,19 +470,20 @@ const submitForm = async () => {
       description: formData.value.description
     }
 
-    isSubmitting.value = true
+    isSubmitting.value = true;
+    console.log('Sending data:', data); // 調試用
 
     if (isEditing.value) {
       // Update activity
       await api.put(
-        `/activities/${formData.value.id}`,
+        `/activities/${formData.value.id}/`,
         data
       )
       ElMessage.success('活動已更新')
     } else {
       // Create activity
       await api.post(
-        '/activities',
+        '/activities/',
         data
       )
       ElMessage.success('活動已建立')
@@ -341,8 +492,9 @@ const submitForm = async () => {
     dialogVisible.value = false
     loadActivities()
   } catch (error) {
-    const errorMsg = error.message || '操作失敗'
+    const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || '操作失敗')
     ElMessage.error(errorMsg)
+    console.error('API Error:', error.response?.data)
   } finally {
     isSubmitting.value = false
   }
@@ -360,7 +512,7 @@ const deleteActivity = (activity) => {
   )
     .then(async () => {
       try {
-        await api.delete(`/activities/${activity.id}`)
+        await api.delete(`/activities/${activity.id}/`)
         ElMessage.success('活動已刪除')
         loadActivities()
       } catch (error) {

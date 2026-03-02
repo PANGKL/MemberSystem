@@ -57,7 +57,7 @@ const activities = ref([]);
 
 const fetchActivities = async () => {
   try {
-    const data = await api.get('/activities');
+    const data = await api.get('/activities/');
     activities.value = data;
   } catch (error) {
     console.error('Failed to fetch activities:', error);

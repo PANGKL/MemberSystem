@@ -74,9 +74,9 @@
           <el-table :data="children" v-loading="childrenLoading" style="width: 100%" class="hidden-xs-only">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="name" label="學員名稱" />
-            <el-table-column prop="dateOfBirth" label="出生日期" width="120" />
-            <el-table-column prop="ageGroup" label="年齡組別" width="100" />
-            <el-table-column prop="skillLevel" label="技能等級" width="100" />
+            <el-table-column prop="date_of_birth" label="出生日期" width="120" />
+            <el-table-column prop="age_group" label="年齡組別" width="100" />
+            <el-table-column prop="skill_level" label="技能等級" width="100" />
             <el-table-column prop="parentName" label="家長" />
             <el-table-column label="操作" width="200">
               <template #default="{ row }">
@@ -93,11 +93,11 @@
             <div v-for="child in children" :key="child.id" class="mobile-user-card">
               <div class="user-card-header">
                 <span class="user-name">{{ child.name }}</span>
-                <el-tag size="small">{{ child.ageGroup }}</el-tag>
+                <el-tag size="small">{{ child.age_group }}</el-tag>
               </div>
               <div class="user-card-body">
-                <p><span class="label">出生日期:</span> {{ child.dateOfBirth }}</p>
-                <p><span class="label">技能等級:</span> {{ child.skillLevel }}</p>
+                <p><span class="label">出生日期:</span> {{ child.date_of_birth }}</p>
+                <p><span class="label">技能等級:</span> {{ child.skill_level }}</p>
                 <p><span class="label">家長:</span> {{ child.parentName }}</p>
               </div>
               <div class="user-card-actions">
@@ -111,37 +111,80 @@
     </el-tabs>
 
     <!-- 編輯/新增用戶對話框 -->
-    <el-dialog v-model="userDialogVisible" :title="isEditUser ? '編輯用戶' : '新增帳號'" width="90%" style="max-width: 500px">
+    <el-dialog v-model="userDialogVisible" :title="isEditUser ? '編輯用戶' : '新增帳號'" width="90%" style="max-width: 650px">
       <el-form :model="userForm" label-position="top">
-        <el-form-item label="用戶名">
-          <el-input v-model="userForm.username" :disabled="isEditUser" />
-        </el-form-item>
-        <el-form-item label="姓名">
-          <el-input v-model="userForm.name" />
-        </el-form-item>
-        <el-form-item label="Email">
-          <el-input v-model="userForm.email" />
-        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="用戶名">
+              <el-input v-model="userForm.username" :disabled="isEditUser" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="姓名">
+              <el-input v-model="userForm.name" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="Email">
+              <el-input v-model="userForm.email" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="電話">
+              <el-input v-model="userForm.phoneNumber" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item label="密碼" v-if="!isEditUser">
           <el-input v-model="userForm.password" type="password" show-password />
         </el-form-item>
-        <el-form-item label="電話">
-          <el-input v-model="userForm.phoneNumber" />
-        </el-form-item>
-        <el-form-item label="角色">
-          <el-select v-model="userForm.role" class="w-full">
-            <el-option label="PARENT" value="PARENT" />
-            <el-option label="COACH" value="COACH" />
-            <el-option label="ADMIN" value="ADMIN" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="積分" v-if="isEditUser">
-          <el-input-number v-model="userForm.points" :min="0" />
-        </el-form-item>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="角色">
+              <el-select v-model="userForm.role" class="w-full">
+                <el-option label="PARENT" value="PARENT" />
+                <el-option label="COACH" value="COACH" />
+                <el-option label="ADMIN" value="ADMIN" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12" v-if="isEditUser">
+            <el-form-item label="積分">
+              <el-input-number v-model="userForm.points" :min="0" class="w-full" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 子女管理部分 -->
+        <div v-if="isEditUser && userForm.role === 'PARENT'" class="children-mgmt-section">
+          <el-divider content-position="left">子女資料管理</el-divider>
+          <div class="children-list-edit">
+            <el-table :data="userForm.children" size="small" border>
+              <el-table-column prop="name" label="姓名" />
+              <el-table-column prop="age_group" label="組別" width="80" />
+              <el-table-column label="操作" width="120">
+                <template #default="{ row }">
+                  <el-button type="primary" size="small" link @click="handleEditChild(row)">編輯</el-button>
+                  <el-button type="danger" size="small" link @click="handleDeleteChild(row)">刪除</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+            <div class="mt-2 text-right">
+              <el-button type="success" size="small" plain @click="prepareAddChildForUser">
+                <Plus class="w-3 h-3 mr-1" /> 新增子女
+              </el-button>
+            </div>
+          </div>
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="userDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveUser">確認</el-button>
+        <el-button type="primary" @click="saveUser">確認更新帳號</el-button>
       </template>
     </el-dialog>
 
@@ -152,10 +195,10 @@
           <el-input v-model="childForm.name" />
         </el-form-item>
         <el-form-item label="出生日期">
-          <el-input v-model="childForm.dateOfBirth" type="date" />
+          <el-input v-model="childForm.date_of_birth" type="date" />
         </el-form-item>
         <el-form-item label="年齡組別">
-          <el-select v-model="childForm.ageGroup" class="w-full">
+          <el-select v-model="childForm.age_group" class="w-full">
             <el-option label="U10" value="U10" />
             <el-option label="U12" value="U12" />
             <el-option label="U14" value="U14" />
@@ -164,14 +207,14 @@
           </el-select>
         </el-form-item>
         <el-form-item label="技能等級">
-          <el-select v-model="childForm.skillLevel" class="w-full">
+          <el-select v-model="childForm.skill_level" class="w-full">
             <el-option label="BEGINNER" value="BEGINNER" />
             <el-option label="INTERMEDIATE" value="INTERMEDIATE" />
             <el-option label="ADVANCED" value="ADVANCED" />
           </el-select>
         </el-form-item>
         <el-form-item label="家長">
-          <el-select v-model="childForm.parentId" class="w-full" placeholder="選擇家長">
+          <el-select v-model="childForm.parent" class="w-full" placeholder="選擇家長">
             <el-option v-for="parent in parentList" :key="parent.id" :label="parent.name" :value="parent.id" />
           </el-select>
         </el-form-item>
@@ -225,7 +268,8 @@ const userForm = reactive({
   phoneNumber: '',
   role: 'PARENT',
   points: 0,
-  level: 'NOVICE'
+  level: 'NOVICE',
+  children: []
 });
 
 // Child Management
@@ -238,10 +282,10 @@ const parentList = ref([]);
 const childForm = reactive({
   id: null,
   name: '',
-  dateOfBirth: '',
-  ageGroup: 'U10',
-  skillLevel: 'BEGINNER',
-  parentId: null
+  date_of_birth: '',
+  age_group: 'U10',
+  skill_level: 'BEGINNER',
+  parent: null
 });
 
 const fetchUsers = async () => {
@@ -283,14 +327,21 @@ const fetchParentList = async () => {
 
 const openCreateUserDialog = () => {
   isEditUser.value = false;
-  Object.assign(userForm, { id: null, username: '', name: '', email: '', password: '', phoneNumber: '', role: 'PARENT', points: 0 });
+  Object.assign(userForm, { id: null, username: '', name: '', email: '', password: '', phoneNumber: '', role: 'PARENT', points: 0, children: [] });
   userDialogVisible.value = true;
 };
 
 const handleEditUser = (user) => {
   isEditUser.value = true;
   Object.assign(userForm, user);
+  // Ensure children is an array
+  if (!userForm.children) userForm.children = [];
   userDialogVisible.value = true;
+};
+
+const prepareAddChildForUser = () => {
+  openCreateChildDialog();
+  childForm.parent = userForm.id;
 };
 
 const saveUser = async () => {
@@ -363,29 +414,36 @@ const handleDeleteUser = (user) => {
 
 const openCreateChildDialog = () => {
   isEditChild.value = false;
-  Object.assign(childForm, { id: null, name: '', dateOfBirth: '', ageGroup: 'U10', skillLevel: 'BEGINNER', parentId: null });
+  Object.assign(childForm, { id: null, name: '', date_of_birth: '', age_group: 'U10', skill_level: 'BEGINNER', parent: null });
   childDialogVisible.value = true;
 };
 
 const handleEditChild = (child) => {
   isEditChild.value = true;
-  Object.assign(childForm, child);
+  Object.assign(childForm, {
+    id: child.id,
+    name: child.name,
+    date_of_birth: child.date_of_birth,
+    age_group: child.age_group,
+    skill_level: child.skill_level,
+    parent: child.parent?.id || child.parent // Handle both populated and ID-only parent
+  });
   childDialogVisible.value = true;
 };
 
 const saveChild = async () => {
   try {
-    if (!childForm.name || !childForm.ageGroup || !childForm.parentId) {
+    if (!childForm.name || !childForm.age_group || !childForm.parent) {
       ElMessage.warning('請填寫所有必填項目');
       return;
     }
     
     const payload = {
       name: childForm.name,
-      date_of_birth: childForm.dateOfBirth || null,
-      age_group: childForm.ageGroup,
-      skill_level: childForm.skillLevel,
-      parent: childForm.parentId
+      date_of_birth: childForm.date_of_birth || null,
+      age_group: childForm.age_group,
+      skill_level: childForm.skill_level,
+      parent: childForm.parent
     };
 
     if (isEditChild.value) {
@@ -396,7 +454,15 @@ const saveChild = async () => {
       ElMessage.success('學員已新增');
     }
     childDialogVisible.value = false;
+    
+    // If we are editing a user, refresh that user's children
+    if (userDialogVisible.value && userForm.id === childForm.parent) {
+      const updatedUser = await api.get(`/users/${userForm.id}/`);
+      userForm.children = updatedUser.children || [];
+    }
+    
     fetchChildren();
+    fetchUsers(); // Also refresh the main list
   } catch (error) {
     ElMessage.error('操作失敗: ' + (error.response?.data?.message || ''));
   }
@@ -408,7 +474,15 @@ const handleDeleteChild = (child) => {
       try {
         await api.delete(`/users/children/${child.id}/`);
         ElMessage.success('學員已刪除');
+        
+        // If we are editing a user, refresh that user's children
+        if (userDialogVisible.value && userForm.id === (child.parent?.id || child.parent)) {
+          const updatedUser = await api.get(`/users/${userForm.id}/`);
+          userForm.children = updatedUser.children || [];
+        }
+        
         fetchChildren();
+        fetchUsers();
       } catch (error) {
         ElMessage.error('刪除失敗');
       }
@@ -504,6 +578,20 @@ onMounted(() => {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+.children-mgmt-section {
+  background-color: #f8fafc;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.children-list-edit {
+  margin-top: 0.5rem;
+}
+
+.mt-2 { margin-top: 0.5rem; }
+.text-right { text-align: right; }
 
 .w-full { width: 100%; }
 
