@@ -1,47 +1,69 @@
+// frontend/src/views/Auth.vue
 <template>
   <div class="auth-container">
-    <el-card class="auth-card">
-      <template #header>
-        <div class="auth-header">
-          <div class="logo-wrapper">
-            <Dribble class="logo-icon" />
-          </div>
-          <h2>{{ isLogin ? '會員登入 (Login)' : '註冊帳號 (Register)' }}</h2>
-        </div>
-      </template>
+    <el-card class="auth-card" shadow="always">
+      <div class="logo-section">
+        <Dribbble class="logo-icon" />
+        <h2>球會會員系統</h2>
+      </div>
 
-      <el-form :model="form" @submit.prevent="handleSubmit" label-position="top">
-        <el-form-item label="用戶名 (Username)">
-          <el-input v-model="form.username" placeholder="請輸入用戶名" />
-        </el-form-item>
+      <el-tabs v-model="activeTab" class="auth-tabs">
+        <el-tab-pane label="登入" name="login">
+          <el-form :model="loginForm" :rules="loginRules" ref="loginFormRef" @submit.prevent="handleLogin">
+            <el-form-item prop="username">
+              <el-input v-model="loginForm.username" placeholder="用戶名" clearable>
+                <template #prefix><User /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+              <el-input type="password" v-model="loginForm.password" placeholder="密碼" show-password>
+                <template #prefix><Lock /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" class="w-full" @click="handleLogin" :loading="userStore.loading">登入</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
 
-        <el-form-item v-if="!isLogin" label="姓名 (Full Name)">
-          <el-input v-model="form.name" placeholder="請輸入姓名" />
-        </el-form-item>
-
-        <el-form-item v-if="!isLogin" label="電子郵件 (Email - 可選)">
-          <el-input v-model="form.email" type="email" placeholder="example@email.com" />
-        </el-form-item>
-
-        <el-form-item label="密碼 (Password)">
-          <el-input v-model="form.password" type="password" show-password placeholder="請輸入密碼" />
-        </el-form-item>
-
-        <el-form-item v-if="!isLogin" label="電話 (Phone Number)">
-          <el-input v-model="form.phoneNumber" placeholder="請輸入電話" />
-        </el-form-item>
-
-        <div class="auth-actions">
-          <el-button type="primary" native-type="submit" :loading="userStore.loading" block>
-            {{ isLogin ? '立即登入' : '確認註冊' }}
-          </el-button>
-          
-          <div class="auth-toggle">
-            <span v-if="isLogin">還沒有帳號？ <a @click="isLogin = false">立即註冊</a></span>
-            <span v-else>已有帳號？ <a @click="isLogin = true">立即登入</a></span>
-          </div>
-        </div>
-      </el-form>
+        <el-tab-pane label="註冊" name="register">
+          <el-form :model="registerForm" :rules="registerRules" ref="registerFormRef" @submit.prevent="handleRegister">
+            <el-form-item prop="username">
+              <el-input v-model="registerForm.username" placeholder="用戶名" clearable>
+                <template #prefix><User /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="email">
+              <el-input v-model="registerForm.email" placeholder="電子郵件 (選填)" clearable>
+                <template #prefix><Mail /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+              <el-input type="password" v-model="registerForm.password" placeholder="密碼" show-password>
+                <template #prefix><Lock /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="confirmPassword">
+              <el-input type="password" v-model="registerForm.confirmPassword" placeholder="確認密碼" show-password>
+                <template #prefix><Lock /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="name">
+              <el-input v-model="registerForm.name" placeholder="姓名" clearable>
+                <template #prefix><UserSquare /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item prop="phoneNumber">
+              <el-input v-model="registerForm.phoneNumber" placeholder="電話號碼 (選填)" clearable>
+                <template #prefix><Phone /></template>
+              </el-input>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="success" class="w-full" @click="handleRegister" :loading="userStore.loading">註冊</el-button>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
     </el-card>
   </div>
 </template>
@@ -51,109 +73,137 @@ import { ref, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import { ElMessage } from 'element-plus';
-import { Dribbble } from 'lucide-vue-next';
+import { User, Lock, Mail, UserSquare, Phone, Dribbble } from 'lucide-vue-next';
 
 const router = useRouter();
 const userStore = useUserStore();
-const isLogin = ref(true);
 
-const form = reactive({
+const activeTab = ref('login');
+const loginFormRef = ref(null);
+const registerFormRef = ref(null);
+
+const loginForm = reactive({
   username: '',
-  name: '',
-  email: '',
   password: '',
-  phoneNumber: ''
 });
 
-const handleSubmit = async () => {
-  if (isLogin.value) {
-    const success = await userStore.login(form.username, form.password);
-    if (success) {
-      ElMessage.success('歡迎回來！ (Welcome back!)');
-      router.push('/');
-    }
+const registerForm = reactive({
+  username: '',
+  email: '',
+  password: '',
+  confirmPassword: '',
+  name: '',
+  phoneNumber: '',
+});
+
+const loginRules = reactive({
+  username: [{ required: true, message: '請輸入用戶名', trigger: 'blur' }],
+  password: [{ required: true, message: '請輸入密碼', trigger: 'blur' }],
+});
+
+const validatePass = (rule, value, callback) => {
+  if (value === '') {
+    callback(new Error('請再次輸入密碼'));
+  } else if (value !== registerForm.password) {
+    callback(new Error('兩次輸入的密碼不一致!'));
   } else {
-    const success = await userStore.register(form);
-    if (success) {
-      ElMessage.success('註冊成功！請登入 (Registration success, please login)');
-      isLogin.value = true;
-    }
+    callback();
   }
+};
+
+const registerRules = reactive({
+  username: [{ required: true, message: '請輸入用戶名', trigger: 'blur' }],
+  password: [{ required: true, message: '請輸入密碼', trigger: 'blur' }, { min: 6, message: '密碼長度至少為6位', trigger: 'blur' }],
+  confirmPassword: [{ required: true, validator: validatePass, trigger: 'blur' }],
+  name: [{ required: true, message: '請輸入姓名', trigger: 'blur' }],
+});
+
+const handleLogin = async () => {
+  if (!loginFormRef.value) return;
+  loginFormRef.value.validate(async (valid) => {
+    if (valid) {
+      const success = await userStore.login(loginForm.username, loginForm.password);
+      if (success) {
+        ElMessage.success('登入成功');
+        router.push('/');
+      } else {
+        // 錯誤訊息已在 api/index.js 和 userStore 中處理
+      }
+    } else {
+      ElMessage.error('請檢查登入表單');
+      return false;
+    }
+  });
+};
+
+const handleRegister = async () => {
+  if (!registerFormRef.value) return;
+  registerFormRef.value.validate(async (valid) => {
+    if (valid) {
+      const success = await userStore.register({
+        username: registerForm.username,
+        email: registerForm.email,
+        password: registerForm.password,
+        name: registerForm.name,
+        phone_number: registerForm.phoneNumber,
+      });
+      if (success) {
+        // 註冊成功後，通常會導向登入頁面或自動登入
+        activeTab.value = 'login'; // 切換到登入頁面
+        loginForm.username = registerForm.username; // 預填用戶名
+        ElMessage.success('註冊成功，請登入');
+      } else {
+        // 錯誤訊息已在 api/index.js 和 userStore 中處理
+      }
+    } else {
+      ElMessage.error('請檢查註冊表單');
+      return false;
+    }
+  });
 };
 </script>
 
 <style scoped>
+/* 樣式保持不變 */
 .auth-container {
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  /* 使用本地 NBA 主題圖片背景，並加上深色遮罩確保文字清晰 */
-  background-image: linear-gradient(rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.7)), 
-                    url('/nbabg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  min-height: 100vh;
+  background-color: #f0f2f5;
 }
 
 .auth-card {
   width: 90%;
   max-width: 400px;
-  border-radius: 16px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-  margin: 20px;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
-.auth-header {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.logo-wrapper {
-  width: 64px;
-  height: 64px;
-  background: #eff6ff;
-  border-radius: 16px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+.logo-section {
+  text-align: center;
+  margin-bottom: 20px;
 }
 
 .logo-icon {
-  width: 32px;
-  height: 32px;
-  color: #2563eb;
+  width: 60px;
+  height: 60px;
+  color: #409eff;
+  margin-bottom: 10px;
 }
 
-.auth-header h2 {
+.logo-section h2 {
+  font-size: 24px;
+  color: #303133;
   margin: 0;
-  font-size: 1.5rem;
-  color: #1e293b;
 }
 
-.auth-actions {
-  margin-top: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.auth-tabs .el-tab-pane {
+  padding: 15px 0;
 }
 
-.auth-toggle {
-  text-align: center;
-  font-size: 0.9rem;
-  color: #64748b;
-}
-
-.auth-toggle a {
-  color: #3b82f6;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.auth-toggle a:hover {
-  text-decoration: underline;
+.w-full {
+  width: 100%;
 }
 </style>

@@ -19,11 +19,11 @@
           <div class="activity-info">
             <div class="info-item">
               <Calendar class="w-4 h-4" />
-              <span>{{ formatDate(activity.dateTime) }}</span>
+              <span>{{ formatDate(activity.date_time) }}</span>
             </div>
             <div class="info-item">
               <Users class="w-4 h-4" />
-              <span>人數限制: {{ activity.currentParticipants }}/{{ activity.maxParticipants }}</span>
+              <span>人數限制: {{ activity.current_participants }}/{{ activity.max_participants }}</span>
             </div>
             <p class="activity-desc">{{ activity.description }}</p>
           </div>
@@ -31,11 +31,11 @@
           <div class="activity-footer">
             <el-button 
               type="primary" 
-              :disabled="activity.currentParticipants >= activity.maxParticipants"
+              :disabled="activity.current_participants >= activity.max_participants"
               @click="handleRegister(activity)"
               block
             >
-              {{ activity.currentParticipants >= activity.maxParticipants ? '已滿額 (Full)' : '立即報名 (Register)' }}
+              {{ activity.current_participants >= activity.max_participants ? '已滿額 (Full)' : '立即報名 (Register)' }}
             </el-button>
           </div>
         </el-card>
@@ -48,7 +48,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
 import api from '../api';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { Calendar, Users, RefreshCw } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -61,6 +61,7 @@ const fetchActivities = async () => {
     activities.value = data;
   } catch (error) {
     console.error('Failed to fetch activities:', error);
+    ElMessage.error('未能載入活動列表 (Failed to load activities list)');
   }
 };
 
@@ -71,8 +72,34 @@ const formatDate = (dateStr) => {
 };
 
 const handleRegister = async (activity) => {
-  // 報名邏輯... 這裡可以彈出對話框選擇子女
-  ElMessage.info('正在開啟報名表單... (Opening registration form)');
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('請先登入才能報名活動 (Please log in to register for activities)');
+    router.push('/login');
+    return;
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `確定要報名活動 "${activity.title}" 嗎？ (Are you sure you want to register for "${activity.title}"?)`,
+      '確認報名 (Confirm Registration)',
+      {
+        confirmButtonText: '確定 (Confirm)',
+        cancelButtonText: '取消 (Cancel)',
+        type: 'warning',
+      }
+    );
+
+    await api.post(`/activities/${activity.id}/register/`);
+    ElMessage.success('報名成功！ (Registration successful!)');
+    fetchActivities(); // Refresh activities to update participant count
+  } catch (error) {
+    if (error === 'cancel') {
+      ElMessage.info('已取消報名 (Registration cancelled)');
+    } else {
+      console.error('Failed to register for activity:', error);
+      ElMessage.error(error.response?.data?.detail || '報名失敗，請稍後再試 (Registration failed, please try again later)');
+    }
+  }
 };
 
 onMounted(() => {

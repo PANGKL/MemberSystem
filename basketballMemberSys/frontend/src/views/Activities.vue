@@ -1,545 +1,426 @@
 <template>
-  <div class="activities-container">
-    <div class="activities-header">
-      <h1>活動報名</h1>
-      <el-tabs v-model="activeTab" @tab-change="filterActivities" class="activity-tabs">
-        <el-tab-pane label="全部活動" name="all"></el-tab-pane>
-        <el-tab-pane label="比賽" name="COMPETITION"></el-tab-pane>
-        <el-tab-pane label="訓練" name="TRAINING"></el-tab-pane>
-        <el-tab-pane label="特別活動" name="SPECIAL_EVENT"></el-tab-pane>
-      </el-tabs>
+  <div class="activities-view">
+    <div class="section-header">
+      <h2>所有活動 (All Activities)</h2>
+      <el-button type="primary" @click="fetchActivities" circle>
+        <RefreshCw class="w-4 h-4" />
+      </el-button>
+      <el-button v-if="userStore.isAdmin" type="success" @click="showCreateActivityDialog = true">
+        新增活動 (Add Activity)
+      </el-button>
     </div>
 
-    <el-empty description="加載中..." v-if="loading" class="empty-state"></el-empty>
-
-    <div class="activities-grid" v-else-if="filteredActivities.length > 0">
-      <el-card class="activity-card" v-for="activity in filteredActivities" :key="activity.id">
-        <!-- 活動類型標籤 -->
+    <div class="activity-grid">
+      <el-card v-for="activity in activities" :key="activity.id" class="activity-card" shadow="hover">
         <template #header>
-          <div class="card-header">
-            <span class="activity-title">{{ activity.title }}</span>
-            <el-tag :type="getActivityTypeColor(activity.type)" class="type-badge">
-              {{ getActivityTypeName(activity.type) }}
-            </el-tag>
+          <div class="activity-card-header">
+            <span class="activity-type" :class="activity.type.toLowerCase()">{{ activity.type }}</span>
+            <h3 class="activity-title">{{ activity.title }}</h3>
           </div>
         </template>
 
-        <!-- 活動詳情內容 -->
-        <div class="activity-details">
-          <div class="detail-row">
-            <el-icon class="detail-icon">
-              <Calendar />
-            </el-icon>
-            <span class="detail-label">日期：</span>
-            <span class="detail-value">{{ formatDate(activity.date) }}</span>
+        <div class="activity-info">
+          <div class="info-item">
+            <Calendar class="w-4 h-4" />
+            <span>{{ formatDate(activity.date_time) }}</span>
           </div>
-
-          <div class="detail-row">
-            <el-icon class="detail-icon">
-              <Clock />
-            </el-icon>
-            <span class="detail-label">時間：</span>
-            <span class="detail-value">{{ activity.time }}</span>
+          <div class="info-item">
+            <MapPin class="w-4 h-4" />
+            <span>{{ activity.location }}</span>
           </div>
-
-          <div class="detail-row">
-            <el-icon class="detail-icon">
-              <Location />
-            </el-icon>
-            <span class="detail-label">地點：</span>
-            <span class="detail-value">{{ activity.location }}</span>
+          <div class="info-item">
+            <DollarSign class="w-4 h-4" />
+            <span>{{ activity.price }} HKD</span>
           </div>
-
-          <div class="detail-row" v-if="activity.price > 0">
-            <el-icon class="detail-icon">
-              <ShoppingCart />
-            </el-icon>
-            <span class="detail-label">價錢：</span>
-            <span class="detail-value price">$ {{ activity.price.toFixed(2) }}</span>
+          <div class="info-item">
+            <Users class="w-4 h-4" />
+            <span>人數限制: {{ activity.current_participants }}/{{ activity.max_participants }}</span>
           </div>
-
-          <div class="detail-row" v-else>
-            <el-icon class="detail-icon">
-              <ShoppingCart />
-            </el-icon>
-            <span class="detail-label">價錢：</span>
-            <span class="detail-value price free">免費</span>
-          </div>
-
-          <div class="detail-row">
-            <el-icon class="detail-icon">
-              <User />
-            </el-icon>
-            <span class="detail-label">名額：</span>
-            <span class="detail-value">{{ activity.currentParticipants }} / {{ activity.maxParticipants }}</span>
-          </div>
-
-          <!-- 詳細資料 -->
-          <div class="description-section" v-if="activity.description">
-            <p class="description-title">詳細資料：</p>
-            <p class="description-text">{{ activity.description }}</p>
-          </div>
-
-          <!-- 進度條 -->
-          <div class="capacity-bar">
-            <el-progress :percentage="(activity.currentParticipants / activity.maxParticipants) * 100" 
-                        :status="getProgressStatus(activity)" />
-          </div>
+          <p class="activity-desc">{{ activity.description }}</p>
         </div>
 
-        <!-- 卡片底部操作 -->
-        <template #footer>
-          <div class="card-footer">
-            <el-button 
-              v-if="activity.currentParticipants < activity.maxParticipants"
-              type="primary" 
-              @click="showRegistrationDialog(activity)"
-              :disabled="!hasChildren">
-              報名
-            </el-button>
-            <el-button 
-              v-else
-              type="info" 
-              disabled>
-              已滿額
-            </el-button>
-            <el-button type="info" @click="showActivityDetails(activity)">
-              詳情
-            </el-button>
+        <div class="activity-footer">
+          <el-button
+            type="primary"
+            :disabled="activity.current_participants >= activity.max_participants"
+            @click="handleRegister(activity)"
+            block
+          >
+            {{ activity.current_participants >= activity.max_participants ? '已滿額 (Full)' : '立即報名 (Register)' }}
+          </el-button>
+          <div v-if="userStore.isAdmin" class="admin-actions">
+            <el-button type="warning" size="small" @click="handleEditActivity(activity)">編輯</el-button>
+            <el-button type="danger" size="small" @click="handleDeleteActivity(activity)">刪除</el-button>
           </div>
-        </template>
+        </div>
       </el-card>
     </div>
 
-    <el-empty description="沒有活動" v-else class="empty-state"></el-empty>
-
-    <!-- 報名對話框 -->
-    <el-dialog v-model="dialogVisible" title="活動報名" width="500px" @close="resetForm">
-      <div class="registration-form">
-        <el-form ref="registrationForm" :model="registrationData" label-width="100px">
-          <el-form-item label="活動：">
-            <span>{{ selectedActivity?.title }}</span>
-          </el-form-item>
-
-          <el-form-item label="選擇孩子：" required>
-            <el-select 
-              v-model="registrationData.childId" 
-              placeholder="請選擇孩子"
-              @change="validateChildSelection">
-              <el-option 
-                v-for="child in userChildren" 
-                :key="child.id" 
-                :label="child.name" 
-                :value="child.id">
-              </el-option>
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="緊急聯絡人：">
-            <el-input 
-              v-model="registrationData.emergencyContact" 
-              placeholder="緊急聯絡人名字">
-            </el-input>
-          </el-form-item>
-
-          <el-form-item label="緊急電話：">
-            <el-input 
-              v-model="registrationData.emergencyPhone" 
-              placeholder="緊急聯絡電話">
-            </el-input>
-          </el-form-item>
-        </el-form>
-      </div>
-
+    <!-- Create/Edit Activity Dialog -->
+    <el-dialog
+      v-model="showCreateActivityDialog"
+      :title="isEditMode ? '編輯活動' : '新增活動'"
+      width="500px"
+      @close="resetActivityForm"
+    >
+      <el-form :model="activityForm" :rules="activityRules" ref="activityFormRef" label-width="100px">
+        <el-form-item label="活動名稱" prop="title">
+          <el-input v-model="activityForm.title"></el-input>
+        </el-form-item>
+        <el-form-item label="活動類型" prop="type">
+          <el-select v-model="activityForm.type" placeholder="選擇活動類型">
+            <el-option label="Course" value="COURSE"></el-option>
+            <el-option label="Training" value="TRAINING"></el-option>
+            <el-option label="Competition" value="COMPETITION"></el-option>
+            <el-option label="Special Event" value="SPECIAL_EVENT"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="日期時間" prop="date_time">
+          <el-date-picker
+            v-model="activityForm.date_time"
+            type="datetime"
+            placeholder="選擇日期時間"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+          ></el-date-picker>
+        </el-form-item>
+        <el-form-item label="地點" prop="location">
+          <el-input v-model="activityForm.location"></el-input>
+        </el-form-item>
+        <el-form-item label="價格" prop="price">
+          <el-input-number v-model="activityForm.price" :min="0"></el-input-number>
+        </el-form-item>
+        <el-form-item label="最大人數" prop="max_participants">
+          <el-input-number v-model="activityForm.max_participants" :min="1"></el-input-number>
+        </el-form-item>
+        <el-form-item label="描述" prop="description">
+          <el-input type="textarea" v-model="activityForm.description"></el-input>
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitRegistration" :loading="isSubmitting">報名</el-button>
-        </div>
+        <el-button @click="showCreateActivityDialog = false">取消</el-button>
+        <el-button type="primary" @click="isEditMode ? updateActivity() : createActivity()">
+          {{ isEditMode ? '更新' : '新增' }}
+        </el-button>
       </template>
     </el-dialog>
 
-    <!-- 活動詳情對話框 -->
-    <el-dialog v-model="detailsDialogVisible" :title="`${selectedActivity?.title} - 詳情`" width="600px">
-      <div class="activity-details-full" v-if="selectedActivity">
-        <div class="detail-section">
-          <h4>活動詳情</h4>
-          <p v-if="selectedActivity.description">{{ selectedActivity.description }}</p>
-          <p v-else style="color: #999;">無詳細介紹</p>
-        </div>
-
-        <div class="detail-section">
-          <h4>活動資訊</h4>
-          <ul class="info-list">
-            <li><strong>活動類型：</strong> {{ getActivityTypeName(selectedActivity.type) }}</li>
-            <li><strong>日期：</strong> {{ formatDate(selectedActivity.date) }}</li>
-            <li><strong>時間：</strong> {{ selectedActivity.time }}</li>
-            <li><strong>地點：</strong> {{ selectedActivity.location }}</li>
-            <li><strong>價錢：</strong> {{ selectedActivity.price > 0 ? `$ ${selectedActivity.price.toFixed(2)}` : '免費' }}</li>
-            <li><strong>可報名人數：</strong> {{ selectedActivity.currentParticipants }} / {{ selectedActivity.maxParticipants }}</li>
-          </ul>
-        </div>
-
-        <div v-if="selectedActivity.registrations && selectedActivity.registrations.length > 0" class="detail-section">
-          <h4>已報名參與者（{{ selectedActivity.registrations.length }}人）</h4>
-          <el-table :data="selectedActivity.registrations" stripe size="small">
-            <el-table-column prop="child.name" label="孩子名字" width="100"></el-table-column>
-            <el-table-column prop="user.name" label="家長名字" width="100"></el-table-column>
-            <el-table-column prop="status" label="狀態" width="80">
-              <template #default="{ row }">
-                <el-tag :type="row.status === 'CONFIRMED' ? 'success' : 'warning'">
-                  {{ row.status === 'CONFIRMED' ? '已確認' : '待確認' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
-      </div>
+    <!-- Register Activity Dialog -->
+    <el-dialog
+      v-model="showRegisterActivityDialog"
+      title="報名活動 (Register Activity)"
+      width="400px"
+    >
+      <p>您正在為活動 <strong>{{ selectedActivity?.title }}</strong> 報名。</p>
+      <p>請選擇要報名的子女：</p>
+      <el-select v-model="selectedChildId" placeholder="選擇子女">
+        <el-option
+          v-for="child in userStore.user?.children"
+          :key="child.id"
+          :label="child.name"
+          :value="child.id"
+        ></el-option>
+      </el-select>
+      <template #footer>
+        <el-button @click="showRegisterActivityDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmRegisterActivity">確認報名</el-button>
+      </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Calendar, Clock, Location, ShoppingCart, User } from '@element-plus/icons-vue'
-import { useUserStore } from '../stores/userStore'
-import api from '../api'
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUserStore } from '../stores/userStore';
+import api from '../api';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Calendar, Users, RefreshCw, MapPin, DollarSign } from 'lucide-vue-next';
 
-const userStore = useUserStore()
-const activeTab = ref('all')
-const activities = ref([])
-const loading = ref(true)
-const dialogVisible = ref(false)
-const detailsDialogVisible = ref(false)
-const selectedActivity = ref(null)
-const isSubmitting = ref(false)
-const userChildren = ref([])
+const router = useRouter();
+const userStore = useUserStore();
+const activities = ref([]);
+const showCreateActivityDialog = ref(false);
+const showRegisterActivityDialog = ref(false);
+const isEditMode = ref(false);
+const currentEditingActivityId = ref(null);
+const selectedActivity = ref(null);
+const selectedChildId = ref(null);
 
-const registrationData = ref({
-  childId: null,
-  emergencyContact: '',
-  emergencyPhone: ''
-})
+const activityFormRef = ref(null);
+const activityForm = reactive({
+  title: '',
+  type: 'COURSE',
+  date_time: '',
+  location: '',
+  price: 0,
+  max_participants: 1,
+  description: '',
+});
 
-const hasChildren = computed(() => userChildren.value.length > 0)
+const activityRules = reactive({
+  title: [{ required: true, message: '請輸入活動名稱', trigger: 'blur' }],
+  type: [{ required: true, message: '請選擇活動類型', trigger: 'change' }],
+  date_time: [{ required: true, message: '請選擇日期時間', trigger: 'change' }],
+  location: [{ required: true, message: '請輸入活動地點', trigger: 'blur' }],
+  price: [{ required: true, message: '請輸入活動價格', trigger: 'blur' }],
+  max_participants: [{ required: true, message: '請輸入最大人數', trigger: 'blur' }],
+  description: [{ required: true, message: '請輸入活動描述', trigger: 'blur' }],
+});
 
-const filteredActivities = computed(() => {
-  if (activeTab.value === 'all') {
-    return activities.value
-  }
-  return activities.value.filter(a => a.type === activeTab.value)
-})
-
-const formatDate = (dateString) => {
-  const date = new Date(dateString + 'T00:00:00')
-  return date.toLocaleDateString('zh-HK', { year: 'numeric', month: '2-digit', day: '2-digit' })
-}
-
-const getActivityTypeName = (type) => {
-  const typeMap = {
-    'COMPETITION': '比賽',
-    'TRAINING': '訓練',
-    'SPECIAL_EVENT': '特別活動'
-  }
-  return typeMap[type] || type
-}
-
-const getActivityTypeColor = (type) => {
-  const colorMap = {
-    'COMPETITION': 'danger',
-    'TRAINING': 'primary',
-    'SPECIAL_EVENT': 'success'
-  }
-  return colorMap[type] || 'info'
-}
-
-const getProgressStatus = (activity) => {
-  const percentage = (activity.currentParticipants / activity.maxParticipants) * 100
-  if (percentage >= 100) return 'exception'
-  if (percentage >= 80) return 'warning'
-  return 'success'
-}
-
-const filterActivities = () => {
-  // Computed property automatically handles filtering
-}
-
-const showRegistrationDialog = (activity) => {
-  selectedActivity.value = activity
-  registrationData.value = {
-    childId: null,
-    emergencyContact: '',
-    emergencyPhone: ''
-  }
-  dialogVisible.value = true
-}
-
-const showActivityDetails = async (activity) => {
+const fetchActivities = async () => {
   try {
-    // 獲取活動詳細信息，包括報名名單
-    const response = await api.get(`/activities/${activity.id}`)
-    selectedActivity.value = response
-    detailsDialogVisible.value = true
+    const data = await api.get('/activities');
+    activities.value = data;
   } catch (error) {
-    ElMessage.error('無法獲取活動詳情：' + error.message)
+    console.error('Failed to fetch activities:', error);
+    ElMessage.error('未能載入活動列表 (Failed to load activities list)');
   }
-}
+};
 
-const validateChildSelection = () => {
-  // Additional validation if needed
-}
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  return new Date(dateStr).toLocaleString('zh-HK', {
+    year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
+  });
+};
 
-const resetForm = () => {
-  registrationData.value = {
-    childId: null,
-    emergencyContact: '',
-    emergencyPhone: ''
-  }
-}
+const resetActivityForm = () => {
+  activityFormRef.value?.resetFields();
+  Object.assign(activityForm, {
+    title: '',
+    type: 'COURSE',
+    date_time: '',
+    location: '',
+    price: 0,
+    max_participants: 1,
+    description: '',
+  });
+  isEditMode.value = false;
+  currentEditingActivityId.value = null;
+};
 
-const submitRegistration = async () => {
-  if (!registrationData.value.childId) {
-    ElMessage.error('請選擇孩子')
-    return
-  }
-
-  isSubmitting.value = true
-  try {
-    await api.post(
-      `/activities/${selectedActivity.value.id}/register`,
-      {
-        childId: registrationData.value.childId,
-        emergencyContact: registrationData.value.emergencyContact,
-        emergencyPhone: registrationData.value.emergencyPhone
+const createActivity = async () => {
+  if (!activityFormRef.value) return;
+  activityFormRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        await api.post('/activities/', activityForm);
+        ElMessage.success('活動新增成功！');
+        showCreateActivityDialog.value = false;
+        fetchActivities();
+      } catch (error) {
+        console.error('Failed to create activity:', error);
+        ElMessage.error(error.response?.data?.detail || '新增活動失敗，請稍後再試');
       }
-    )
-    
-    ElMessage.success('報名成功！')
-    dialogVisible.value = false
-    loadActivities() // Refresh the list
-  } catch (error) {
-    const errorMsg = error.message || '報名失敗'
-    ElMessage.error(errorMsg)
-  } finally {
-    isSubmitting.value = false
-  }
-}
+    }
+  });
+};
 
-const loadActivities = async () => {
-  try {
-    loading.value = true
-    const response = await api.get('/activities')
-    activities.value = response
-  } catch (error) {
-    ElMessage.error('無法加載活動：' + error.message)
-  } finally {
-    loading.value = false
-  }
-}
+const handleEditActivity = (activity) => {
+  isEditMode.value = true;
+  currentEditingActivityId.value = activity.id;
+  Object.assign(activityForm, {
+    title: activity.title,
+    type: activity.type,
+    date_time: activity.date_time,
+    location: activity.location,
+    price: activity.price,
+    max_participants: activity.max_participants,
+    description: activity.description,
+  });
+  showCreateActivityDialog.value = true;
+};
 
-const loadUserChildren = async () => {
+const updateActivity = async () => {
+  if (!activityFormRef.value) return;
+  activityFormRef.value.validate(async (valid) => {
+    if (valid) {
+      try {
+        await api.put(`/activities/${currentEditingActivityId.value}/`, activityForm);
+        ElMessage.success('活動更新成功！');
+        showCreateActivityDialog.value = false;
+        fetchActivities();
+      } catch (error) {
+        console.error('Failed to update activity:', error);
+        ElMessage.error(error.response?.data?.detail || '更新活動失敗，請稍後再試');
+      }
+    }
+  });
+};
+
+const handleDeleteActivity = async (activity) => {
   try {
-    const response = await api.get('/user/children')
-    userChildren.value = response
+    await ElMessageBox.confirm(
+      `確定要刪除活動 "${activity.title}" 嗎？ (Are you sure you want to delete "${activity.title}"?)`,
+      '確認刪除 (Confirm Deletion)',
+      {
+        confirmButtonText: '確定 (Confirm)',
+        cancelButtonText: '取消 (Cancel)',
+        type: 'warning',
+      }
+    );
+    await api.delete(`/activities/${activity.id}/`);
+    ElMessage.success('活動刪除成功！');
+    fetchActivities();
   } catch (error) {
-    ElMessage.error('無法加載孩子資訊：' + error.message)
+    if (error === 'cancel') {
+      ElMessage.info('已取消刪除 (Deletion cancelled)');
+    } else {
+      console.error('Failed to delete activity:', error);
+      ElMessage.error(error.response?.data?.detail || '刪除活動失敗，請稍後再試');
+    }
   }
-}
+};
+
+const handleRegister = async (activity) => {
+  if (!userStore.isAuthenticated) {
+    ElMessage.warning('請先登入才能報名活動 (Please log in to register for activities)');
+    router.push('/login');
+    return;
+  }
+  if (!userStore.user?.children || userStore.user.children.length === 0) {
+    ElMessage.warning('您沒有可報名的子女，請先在個人資料頁新增子女 (You have no children to register, please add children in your profile page first)');
+    router.push('/profile');
+    return;
+  }
+  selectedActivity.value = activity;
+  selectedChildId.value = null; // Reset selected child
+  showRegisterActivityDialog.value = true;
+};
+
+const confirmRegisterActivity = async () => {
+  if (!selectedActivity.value || !selectedChildId.value) {
+    ElMessage.warning('請選擇要報名的子女 (Please select a child to register)');
+    return;
+  }
+  try {
+    await api.post(`/activities/${selectedActivity.value.id}/register/`, { child_id: selectedChildId.value });
+    ElMessage.success('報名成功！');
+    showRegisterActivityDialog.value = false;
+    fetchActivities(); // Refresh activities to update participant count
+  } catch (error) {
+    console.error('Failed to register for activity:', error);
+    ElMessage.error(error.response?.data?.detail || '報名失敗，請稍後再試');
+  }
+};
 
 onMounted(() => {
-  loadActivities()
-  loadUserChildren()
-})
+  fetchActivities();
+  userStore.syncUserProfile(); // Ensure children data is loaded for registration
+});
 </script>
 
 <style scoped>
-.activities-container {
-  padding: 20px;
-  min-height: 100vh;
+.activities-view {
+  padding-bottom: 1rem;
 }
 
-.activities-header {
-  margin-bottom: 30px;
-  text-align: center;
-}
-
-.activities-header h1 {
-  font-size: 32px;
-  color: #1e40af;
-  margin-bottom: 20px;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-}
-
-.activity-tabs {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-  margin-bottom: 30px;
-  padding: 0 20px;
-}
-
-.activities-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-  gap: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.activity-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
-
-.activity-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-}
-
-.card-header {
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  margin-bottom: 1.5rem;
 }
+
+@media (min-width: 768px) {
+  .section-header {
+    margin-bottom: 2rem;
+  }
+}
+
+.section-header h2 {
+  font-size: 1.25rem;
+  color: #1e293b;
+  font-weight: 700;
+}
+
+@media (min-width: 768px) {
+  .section-header h2 {
+    font-size: 1.5rem;
+  }
+}
+
+.activity-grid {
+  display: grid;
+  grid-template-cols: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .activity-grid {
+    grid-template-cols: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .activity-grid {
+    gap: 2rem;
+  }
+}
+
+.activity-card {
+  border-radius: 16px;
+  border: none;
+  overflow: hidden;
+}
+
+.activity-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.activity-type {
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 6px;
+  width: fit-content;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.activity-type.course { background-color: #dbeafe; color: #1e40af; }
+.activity-type.training { background-color: #fef3c7; color: #92400e; }
+.activity-type.competition { background-color: #fee2e2; color: #b91c1c; }
+.activity-type.special_event { background-color: #e0e7ff; color: #4338ca; }
+
 
 .activity-title {
-  font-size: 25px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 1.25rem;
   color: #1e293b;
-  flex: 1;
 }
 
-.type-badge {
-  font-size: 12px;
-  padding: 4px 12px;
+.activity-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.activity-details {
-  padding: 20px 0;
-}
-
-.detail-row {
+.info-item {
   display: flex;
   align-items: center;
-  margin-bottom: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.detail-icon {
-  color: #3b82f6;
-  margin-right: 8px;
-  font-size: 16px;
-}
-
-.detail-label {
-  font-weight: 600;
-  min-width: 60px;
-  color: #475569;
-}
-
-.detail-value {
-  color: #1e293b;
-  flex: 1;
-}
-
-.detail-value.price {
-  font-weight: 600;
-  color: #ef4444;
-}
-
-.detail-value.price.free {
-  color: #10b981;
-}
-
-.description-section {
-  margin-top: 16px;
-  padding: 12px 0;
-}
-
-.description-title {
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 8px;
-  font-size: 18px;
-}
-
-.description-text {
+  gap: 8px;
   color: #64748b;
-  line-height: 1.6;
-  margin: 0;
-  font-size: 16px;
-  padding: 8px 0;
+  font-size: 0.9rem;
 }
 
-.capacity-bar {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.card-footer {
-  display: flex;
-  gap: 10px;
-}
-
-.card-footer .el-button {
-  flex: 1;
-}
-
-.empty-state {
-  padding: 60px 20px;
-  background: white;
-  border-radius: 12px;
-  max-width: 600px;
-  margin: 40px auto;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-}
-
-.registration-form {
-  padding: 20px 0;
-}
-
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.activity-details-full {
-  padding: 20px 0;
-}
-
-.detail-section {
-  margin-bottom: 24px;
-}
-
-.detail-section h4 {
-  color: #1e293b;
-  font-size: 16px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 2px solid #3b82f6;
-}
-
-.info-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.info-list li {
-  padding: 8px 0;
+.activity-desc {
+  margin: 12px 0 0;
   color: #475569;
-  line-height: 1.8;
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
-.info-list strong {
-  color: #1e293b;
-  min-width: 100px;
+.activity-footer {
+  margin-top: 24px;
+}
+
+.admin-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
 }
 </style>

@@ -247,7 +247,7 @@ const childForm = reactive({
 const fetchUsers = async () => {
   usersLoading.value = true;
   try {
-    const data = await api.get('/user/all');
+    const data = await api.get('/users/');
     users.value = data;
   } catch (error) {
     console.error('Fetch users failed:', error);
@@ -259,8 +259,7 @@ const fetchUsers = async () => {
 const fetchChildren = async () => {
   childrenLoading.value = true;
   try {
-    const data = await api.get('/children/all');
-    // Map parent names to children
+    const data = await api.get('/users/children/');
     const childrenWithParentNames = data.map(child => ({
       ...child,
       parentName: child.parent?.name || 'N/A'
@@ -275,7 +274,7 @@ const fetchChildren = async () => {
 
 const fetchParentList = async () => {
   try {
-    const data = await api.get('/user/all');
+    const data = await api.get('/users/');
     parentList.value = data.filter(user => user.role === 'PARENT');
   } catch (error) {
     console.error('Fetch parent list failed:', error);
@@ -297,10 +296,32 @@ const handleEditUser = (user) => {
 const saveUser = async () => {
   try {
     if (isEditUser.value) {
-      await api.put(`/user/${userForm.id}`, userForm);
+      const payload = {
+        username: userForm.username,
+        name: userForm.name,
+        email: userForm.email,
+        phone_number: userForm.phoneNumber,
+        role: userForm.role,
+        points: userForm.points,
+        level: userForm.level,
+      };
+      await api.put(`/users/${userForm.id}/`, payload);
       ElMessage.success('用戶已更新');
     } else {
-      await api.post('/user/create', userForm);
+      // 先用註冊端點建立帳號（含密碼）
+      const created = await api.post('/users/register/', {
+        username: userForm.username,
+        email: userForm.email,
+        password: userForm.password,
+        name: userForm.name,
+        phone_number: userForm.phoneNumber,
+      });
+      // 之後用管理端點更新角色、積分等
+      await api.put(`/users/${created.id}/`, {
+        role: userForm.role,
+        points: userForm.points,
+        level: userForm.level,
+      });
       ElMessage.success('用戶已創建');
     }
     userDialogVisible.value = false;
@@ -319,7 +340,7 @@ const handleResetPassword = (user) => {
 const confirmResetPassword = async () => {
   if (!newPassword.value) return ElMessage.warning('請輸入密碼');
   try {
-    await api.put(`/user/${selectedUserId.value}/reset-password`, { newPassword: newPassword.value });
+    await api.put(`/users/${selectedUserId.value}/reset_password/`, { newPassword: newPassword.value });
     ElMessage.success('密碼已重設');
     resetPwdDialogVisible.value = false;
   } catch (error) {
@@ -331,7 +352,7 @@ const handleDeleteUser = (user) => {
   ElMessageBox.confirm(`確定要刪除用戶 ${user.name} 嗎？`, '警告', { type: 'warning' })
     .then(async () => {
       try {
-        await api.delete(`/user/${user.id}`);
+        await api.delete(`/users/${user.id}/`);
         ElMessage.success('用戶已刪除');
         fetchUsers();
       } catch (error) {
@@ -359,11 +380,19 @@ const saveChild = async () => {
       return;
     }
     
+    const payload = {
+      name: childForm.name,
+      date_of_birth: childForm.dateOfBirth || null,
+      age_group: childForm.ageGroup,
+      skill_level: childForm.skillLevel,
+      parent: childForm.parentId
+    };
+
     if (isEditChild.value) {
-      await api.put(`/children/${childForm.id}`, childForm);
+      await api.put(`/users/children/${childForm.id}/`, payload);
       ElMessage.success('學員已更新');
     } else {
-      await api.post('/children', childForm);
+      await api.post('/users/children/', payload);
       ElMessage.success('學員已新增');
     }
     childDialogVisible.value = false;
@@ -377,7 +406,7 @@ const handleDeleteChild = (child) => {
   ElMessageBox.confirm(`確定要刪除學員 ${child.name} 嗎？`, '警告', { type: 'warning' })
     .then(async () => {
       try {
-        await api.delete(`/children/${child.id}`);
+        await api.delete(`/users/children/${child.id}/`);
         ElMessage.success('學員已刪除');
         fetchChildren();
       } catch (error) {

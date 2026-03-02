@@ -56,17 +56,31 @@ const router = createRouter({
   routes
 });
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const userStore = useUserStore();
-  const isAuthenticated = !!userStore.token;
-  const isAdmin = userStore.user?.role === 'ADMIN';
+  const isAuthenticated = !!userStore.accessToken;
+  let isAdmin = userStore.isAdmin;
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login');
-  } else if (to.meta.guestOnly && isAuthenticated) {
+    return;
+  }
+
+  if (to.meta.requiresAdmin && isAuthenticated && !isAdmin) {
+    try {
+      await userStore.syncUserProfile();
+      isAdmin = userStore.isAdmin;
+    } catch (e) {
+      // ignore
+    }
+    if (!isAdmin) {
+      next('/');
+      return;
+    }
+  }
+
+  if (to.meta.guestOnly && isAuthenticated) {
     next('/');
-  } else if (to.meta.requiresAdmin && !isAdmin) {
-    next('/'); // 非管理員試圖進入管理頁面，導回首頁
   } else {
     next();
   }
