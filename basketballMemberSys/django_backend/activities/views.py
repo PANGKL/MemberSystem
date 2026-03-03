@@ -43,11 +43,18 @@ class ActivityViewSet(viewsets.ModelViewSet):
         if Registration.objects.filter(child=child, activity=activity).exists():
             return Response({'detail': '該學員已報名此活動 (Child already registered for this activity)'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 檢查活動價格，決定初始狀態
+        if activity.price > 0:
+            registration_status = 'PENDING_PAYMENT'
+        else:
+            registration_status = 'AWAITING_APPROVAL'
+
         # 創建報名記錄
         registration = Registration.objects.create(
             user=user,
             child=child,
             activity=activity,
+            status=registration_status,
             medical_statement=request.data.get('medical_statement'),
             emergency_contact=request.data.get('emergency_contact'),
             emergency_phone=request.data.get('emergency_phone'),
@@ -64,6 +71,12 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     queryset = Registration.objects.all()
     serializer_class = RegistrationSerializer
     permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Registration.objects.all()
+        return Registration.objects.filter(user=user)
 
     def get_serializer_class(self):
         if self.action in ['update', 'partial_update']:

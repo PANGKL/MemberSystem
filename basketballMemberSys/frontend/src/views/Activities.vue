@@ -53,52 +53,81 @@
       </el-tab-pane>
 
       <el-tab-pane label="待確認" name="pending">
-        <div class="registration-list" v-if="pendingRegistrations.length > 0">
-          <el-card v-for="reg in pendingRegistrations" :key="reg.id" class="registration-card" shadow="hover">
-            <div class="registration-content">
-              <div class="activity-summary">
-                <h4>{{ reg.activity?.title }}</h4>
-                <p><Calendar class="w-3 h-3 inline mr-1" />{{ formatDate(reg.activity?.date_time) }}</p>
-                <p><User class="w-3 h-3 inline mr-1" />學員: {{ reg.child?.name }}</p>
+        <div class="activity-grid">
+          <el-card v-for="reg in pendingRegistrations" :key="reg.id" class="activity-card" shadow="hover">
+            <template #header>
+              <div class="activity-card-header">
+                <span class="activity-type" :class="reg.activity?.type.toLowerCase()">{{ reg.activity?.type }}</span>
+                <h3 class="activity-title">{{ reg.activity?.title }}</h3>
               </div>
-              <div class="registration-status-action">
-                <el-tag :type="getStatusTagType(reg.status)">
-                  {{ getStatusLabel(reg.status) }}
-                </el-tag>
-                <div class="mt-2" v-if="reg.status === 'PENDING_PAYMENT'">
-                  <el-button type="warning" size="small" @click="openPaymentDialog(reg)">上傳收據</el-button>
-                </div>
-                <div class="mt-2" v-if="reg.status === 'AWAITING_APPROVAL'">
-                  <small class="text-gray-500">等待管理員核實中...</small>
-                </div>
+            </template>
+
+            <div class="activity-info">
+              <div class="info-item">
+                <Calendar class="w-4 h-4" />
+                <span>{{ formatDate(reg.activity?.date_time) }}</span>
+              </div>
+              <div class="info-item">
+                <MapPin class="w-4 h-4" />
+                <span>{{ reg.activity?.location }}</span>
+              </div>
+              <div class="info-item">
+                <DollarSign class="w-4 h-4" />
+                <span>{{ reg.activity?.price }} HKD</span>
+              </div>
+              <div class="info-item">
+                <Users class="w-4 h-4" />
+                <span>人數限制: {{ reg.activity?.current_participants }}/{{ reg.activity?.max_participants }}</span>
+              </div>
+              <p class="activity-desc">{{ reg.activity?.description }}</p>
+            </div>
+
+            <div class="activity-footer">
+              <el-tag :type="getStatusTagType(reg.status)" class="mb-2">{{ getStatusLabel(reg.status) }}</el-tag>
+              <div v-if="reg.status === 'PENDING_PAYMENT' && reg.activity?.price > 0">
+                <el-button type="warning" size="small" @click="openPaymentDialog(reg)" block>上傳收據</el-button>
+              </div>
+              <div v-if="reg.status === 'AWAITING_APPROVAL'">
+                <small class="text-gray-500">等待管理員核實中...</small>
               </div>
             </div>
           </el-card>
         </div>
-        <el-empty v-else description="尚無待處理的報名" />
+        <el-empty v-if="pendingRegistrations.length === 0" description="尚無待處理的報名" />
       </el-tab-pane>
 
       <el-tab-pane label="已報名" name="confirmed">
-        <div class="registration-list" v-if="confirmedRegistrations.length > 0">
-          <el-card v-for="reg in confirmedRegistrations" :key="reg.id" class="registration-card success" shadow="hover">
-            <div class="registration-content">
-              <div class="activity-summary">
-                <h4>{{ reg.activity?.title }}</h4>
-                <p><Calendar class="w-3 h-3 inline mr-1" />{{ formatDate(reg.activity?.date_time) }}</p>
-                <p><User class="w-3 h-3 inline mr-1" />學員: {{ reg.child?.name }}</p>
+        <div class="activity-grid">
+          <el-card v-for="reg in confirmedRegistrations" :key="reg.id" class="activity-card success" shadow="hover">
+            <template #header>
+              <div class="activity-card-header">
+                <span class="activity-type" :class="reg.activity?.type.toLowerCase()">{{ reg.activity?.type }}</span>
+                <h3 class="activity-title">{{ reg.activity?.title }}</h3>
               </div>
-              <div class="registration-status-action">
-                <el-tag type="success">
-                  {{ getStatusLabel(reg.status) }}
-                </el-tag>
-                <div class="mt-2">
-                  <small class="text-green-600">祝你活動愉快！</small>
-                </div>
+            </template>
+
+            <div class="activity-info">
+              <div class="info-item">
+                <Calendar class="w-4 h-4" />
+                <span>{{ formatDate(reg.activity?.date_time) }}</span>
               </div>
+              <div class="info-item">
+                <MapPin class="w-4 h-4" />
+                <span>{{ reg.activity?.location }}</span>
+              </div>
+              <div class="info-item">
+                <DollarSign class="w-4 h-4" />
+                <span>{{ reg.activity?.price }} HKD</span>
+              </div>
+            </div>
+
+            <div class="activity-footer">
+              <el-tag type="success">{{ getStatusLabel(reg.status) }}</el-tag>
+              <p class="mt-2 text-green-600">祝你活動愉快！</p>
             </div>
           </el-card>
         </div>
-        <el-empty v-else description="尚無成功的報名記錄" />
+        <el-empty v-if="confirmedRegistrations.length === 0" description="尚無成功的報名記錄" />
       </el-tab-pane>
 
       <el-tab-pane label="過往活動 (Past)" name="past">
@@ -214,7 +243,10 @@ const selectedChildId = ref(null);
 // 分類活動
 const newActivities = computed(() => {
   const now = new Date();
-  return activities.value.filter(a => new Date(a.date_time) > now);
+  const registeredActivityIds = new Set(myRegistrations.value.map(reg => reg.activity?.id || reg.activity));
+  return activities.value.filter(a => {
+    return new Date(a.date_time) > now && !registeredActivityIds.has(a.id);
+  });
 });
 
 const pastActivities = computed(() => {
@@ -223,13 +255,21 @@ const pastActivities = computed(() => {
 });
 
 const pendingRegistrations = computed(() => {
-  return myRegistrations.value.filter(reg => 
-    reg.status === 'PENDING_PAYMENT' || reg.status === 'AWAITING_APPROVAL'
-  );
+  return myRegistrations.value
+    .filter(reg => reg.status === 'PENDING_PAYMENT' || reg.status === 'AWAITING_APPROVAL')
+    .map(reg => {
+      const activity = activities.value.find(a => a.id === (reg.activity?.id || reg.activity));
+      return { ...reg, activity };
+    });
 });
 
 const confirmedRegistrations = computed(() => {
-  return myRegistrations.value.filter(reg => reg.status === 'CONFIRMED');
+  return myRegistrations.value
+    .filter(reg => reg.status === 'CONFIRMED')
+    .map(reg => {
+      const activity = activities.value.find(a => a.id === (reg.activity?.id || reg.activity));
+      return { ...reg, activity };
+    });
 });
 
 const fetchActivities = async () => {
@@ -251,6 +291,7 @@ const fetchActivities = async () => {
 const fetchMyRegistrations = async () => {
   try {
     const data = await api.get('/activities/registrations/');
+    console.log('Fetched my registrations:', data); // 偵錯日誌
     myRegistrations.value = data.map(reg => ({
       ...reg,
       activity: reg.activity ? {
@@ -349,7 +390,11 @@ const confirmRegisterActivity = async () => {
   }
   try {
     await api.post(`/activities/${selectedActivity.value.id}/register/`, { child_id: selectedChildId.value });
-    ElMessage.success('報名成功！請前往「待付款/確認」分頁上傳收據。');
+    if (selectedActivity.value.price > 0) {
+      ElMessage.success('報名成功！請前往「待確認」分頁上傳收據。');
+    } else {
+      ElMessage.success('免費活動報名成功！請等待管理員審核。');
+    }
     showRegisterActivityDialog.value = false;
     activeTab.value = 'pending';
     fetchMyRegistrations();
@@ -360,11 +405,14 @@ const confirmRegisterActivity = async () => {
   }
 };
 
-onMounted(() => {
-  fetchActivities();
+onMounted(async () => {
+  // Await fetchActivities to ensure the full list is available for lookups
+  await fetchActivities();
+  
   if (userStore.isAuthenticated) {
-    fetchMyRegistrations();
-    userStore.syncUserProfile();
+    // Await registrations and profile sync
+    await fetchMyRegistrations();
+    await userStore.syncUserProfile();
   }
 });
 </script>

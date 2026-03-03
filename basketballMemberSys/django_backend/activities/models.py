@@ -43,6 +43,17 @@ class Activity(models.Model):
     def __str__(self):
         return self.title
 
+import os
+import random
+
+def get_receipt_upload_path(instance, filename):
+    """Generate a unique path for the receipt upload."""
+    from django.utils import timezone
+    now = timezone.now()
+    base, extension = os.path.splitext(filename)
+    random_suffix = ''.join(random.choices('0123456789', k=3))
+    return f'receipts/{now.strftime("%Y%m%d%H%M")}{random_suffix}{extension}'
+
 class Registration(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='registrations')
     child = models.ForeignKey(Child, on_delete=models.CASCADE, related_name='registrations')
@@ -53,7 +64,7 @@ class Registration(models.Model):
     emergency_phone = models.CharField(max_length=20, blank=True, null=True)
 
     # 繳費相關
-    payment_receipt = models.ImageField(upload_to='receipts/', blank=True, null=True)
+    payment_receipt = models.ImageField(upload_to=get_receipt_upload_path, blank=True, null=True)
     payment_reference = models.CharField(max_length=100, blank=True, null=True)
 
     STATUS_CHOICES = [
@@ -67,6 +78,13 @@ class Registration(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     # updated_at = models.DateTimeField(auto_now=True) # Prisma schema 中 Registration 沒有 updatedAt
+
+    def delete(self, *args, **kwargs):
+        # Delete the payment receipt file from storage
+        if self.payment_receipt:
+            if os.path.isfile(self.payment_receipt.path):
+                os.remove(self.payment_receipt.path)
+        super().delete(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Registration'

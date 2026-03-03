@@ -3,27 +3,36 @@ from rest_framework import serializers
 from .models import Activity, Registration, Reward, PointTransaction
 from users_app.serializers import UserSerializer, ChildSerializer # 導入 UserSerializer 和 ChildSerializer
 
-class RegistrationSerializer(serializers.ModelSerializer):
+# --- Nested / Summary Serializers (to avoid circular dependencies) ---
+
+class ActivitySummarySerializer(serializers.ModelSerializer):
+    """A lightweight serializer for activities when nested inside other models."""
+    class Meta:
+        model = Activity
+        fields = (
+            'id', 'title', 'type', 'date_time', 'location', 'price',
+            'current_participants', 'max_participants'
+        )
+
+class RegistrationForActivitySerializer(serializers.ModelSerializer):
+    """A lightweight serializer for registrations when nested inside an activity."""
     user = UserSerializer(read_only=True)
     child = ChildSerializer(read_only=True)
-
     class Meta:
         model = Registration
-        fields = '__all__'
-        read_only_fields = ['user', 'status', 'attendance']
+        fields = ('id', 'user', 'child', 'status', 'payment_receipt')
+
+# --- Main Serializers ---
 
 class ActivitySerializer(serializers.ModelSerializer):
+    """Full serializer for the Activity model, used for list and detail views."""
+    registrations = RegistrationForActivitySerializer(many=True, read_only=True)
     currentParticipants = serializers.IntegerField(source='current_participants', read_only=True)
     maxParticipants = serializers.IntegerField(source='max_participants')
-    registrations = RegistrationSerializer(many=True, read_only=True)
 
     class Meta:
         model = Activity
-        fields = [
-            'id', 'title', 'type', 'description', 'location', 'price', 
-            'date', 'time', 'date_time', 'maxParticipants', 'currentParticipants',
-            'created_at', 'updated_at', 'registrations'
-        ]
+        fields = '__all__'
         read_only_fields = ['date_time', 'created_at', 'updated_at']
 
     def to_internal_value(self, data):
@@ -31,6 +40,17 @@ class ActivitySerializer(serializers.ModelSerializer):
         if 'maxParticipants' in data:
             data['max_participants'] = data['maxParticipants']
         return super().to_internal_value(data)
+
+class RegistrationSerializer(serializers.ModelSerializer):
+    """Full serializer for the Registration model, used for list and detail views."""
+    user = UserSerializer(read_only=True)
+    child = ChildSerializer(read_only=True)
+    activity = ActivitySummarySerializer(read_only=True)
+
+    class Meta:
+        model = Registration
+        fields = '__all__'
+        read_only_fields = ['user', 'status', 'attendance', 'payment_receipt']
 
 class RegistrationCreateSerializer(serializers.ModelSerializer):
     class Meta:
