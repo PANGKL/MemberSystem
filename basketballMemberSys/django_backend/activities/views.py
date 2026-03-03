@@ -124,9 +124,38 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAdminUser])
     def reject(self, request, pk=None):
         registration = self.get_object()
-        registration.status = 'PENDING_PAYMENT' # 退回待繳費
+        # If activity is free, reset to AWAITING_APPROVAL (or PENDING_PAYMENT if we want consistency)
+        # But if free, price is 0, so PENDING_PAYMENT is confusing.
+        # However, logic in register() sets it to AWAITING_APPROVAL for free activities.
+        # So let's check price.
+        if registration.activity.price > 0:
+            registration.status = 'PENDING_PAYMENT'
+        else:
+            registration.status = 'AWAITING_APPROVAL' # Reset to awaiting approval
+            
         registration.save()
-        return Response({'status': 'pending_payment'})
+        return Response({'status': registration.status})
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def cancel(self, request, pk=None):
+        registration = self.get_object()
+        # Allow user to cancel their own registration
+        if registration.user != request.user and not request.user.is_staff:
+             return Response({'detail': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        if registration.status == 'CANCELLED':
+             return Response({'detail': 'Already cancelled'}, status=status.HTTP_400_BAD_REQUEST)
+
+        registration.status = 'CANCELLED'
+        registration.save()
+        
+        # Decrement participant count
+        activity = registration.activity
+        if activity.current_participants > 0:
+            activity.current_participants -= 1
+            activity.save()
+            
+        return Response({'status': 'cancelled'})
 
 class RewardViewSet(viewsets.ModelViewSet):
     queryset = Reward.objects.all()

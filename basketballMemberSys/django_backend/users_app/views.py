@@ -20,7 +20,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == 'register':
             return UserRegisterSerializer
-        elif self.action == 'list' or (self.action == 'retrieve' and self.request.user.is_staff):
+        elif self.action in ['list', 'create', 'update', 'partial_update', 'retrieve'] and self.request.user.is_staff:
             return AdminUserSerializer
         return UserSerializer
 

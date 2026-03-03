@@ -7,6 +7,43 @@
     <el-tabs v-model="activeTab">
       <!-- 用戶管理選項卡 -->
       <el-tab-pane label="帳號管理" name="users">
+        <!-- 搜尋與篩選區域 -->
+        <el-card shadow="never" class="filter-card mb-4">
+          <el-row :gutter="20">
+            <el-col :span="6" :xs="24">
+              <el-input
+                v-model="userSearchQuery"
+                placeholder="搜尋姓名、Email、用戶名"
+                clearable
+                prefix-icon="Search"
+              />
+            </el-col>
+            <el-col :span="6" :xs="24">
+              <el-select v-model="userRoleFilter" placeholder="角色篩選" clearable style="width: 100%">
+                <el-option label="全部角色" value="" />
+                <el-option label="管理員 (Admin)" value="ADMIN" />
+                <el-option label="教練 (Coach)" value="COACH" />
+                <el-option label="家長 (Parent)" value="PARENT" />
+              </el-select>
+            </el-col>
+            <el-col :span="8" :xs="24">
+               <el-date-picker
+                v-model="userDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="註冊開始日期"
+                end-placeholder="註冊結束日期"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-col>
+            <el-col :span="4" :xs="24" class="text-right">
+              <el-button @click="clearUserFilters">清除篩選</el-button>
+              <el-button type="primary" @click="exportUserData">匯出 CSV</el-button>
+            </el-col>
+          </el-row>
+        </el-card>
+
         <div class="tab-actions">
           <el-button type="primary" @click="openCreateUserDialog">
             <Plus class="w-4 h-4 mr-1" />
@@ -16,11 +53,16 @@
 
         <el-card shadow="never" class="table-card">
           <!-- Desktop Table -->
-          <el-table :data="users" v-loading="usersLoading" style="width: 100%" class="hidden-xs-only">
+          <el-table :data="filteredUsers" v-loading="usersLoading" style="width: 100%" class="hidden-xs-only">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="username" label="用戶名" />
             <el-table-column prop="name" label="姓名" />
             <el-table-column prop="email" label="Email" />
+            <el-table-column prop="date_joined" label="註冊日期" width="180">
+              <template #default="{ row }">
+                {{ formatDate(row.date_joined) }}
+              </template>
+            </el-table-column>
             <el-table-column prop="role" label="角色" width="100">
               <template #default="{ row }">
                 <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'">{{ row.role }}</el-tag>
@@ -40,7 +82,7 @@
 
           <!-- Mobile Card List -->
           <div class="mobile-user-list hidden-sm-and-up">
-            <div v-for="user in users" :key="user.id" class="mobile-user-card">
+            <div v-for="user in filteredUsers" :key="user.id" class="mobile-user-card">
               <div class="user-card-header">
                 <span class="user-name">{{ user.name }}</span>
                 <el-tag :type="user.role === 'ADMIN' ? 'danger' : 'info'" size="small">{{ user.role }}</el-tag>
@@ -48,6 +90,7 @@
               <div class="user-card-body">
                 <p><span class="label">用戶名:</span> {{ user.username }}</p>
                 <p><span class="label">Email:</span> {{ user.email }}</p>
+                <p><span class="label">註冊日期:</span> {{ formatDate(user.date_joined) }}</p>
                 <p><span class="label">積分:</span> {{ user.points }}</p>
               </div>
               <div class="user-card-actions">
@@ -62,6 +105,42 @@
 
       <!-- 學員管理選項卡 -->
       <el-tab-pane label="學員管理" name="children">
+        <!-- 學員搜尋與篩選區域 -->
+        <el-card shadow="never" class="filter-card mb-4">
+          <el-row :gutter="20">
+            <el-col :span="6" :xs="24">
+              <el-input
+                v-model="childSearchQuery"
+                placeholder="搜尋學員姓名、ID"
+                clearable
+                prefix-icon="Search"
+              />
+            </el-col>
+            <el-col :span="6" :xs="24">
+              <el-select v-model="childCourseStatusFilter" placeholder="課程狀態" clearable style="width: 100%">
+                <el-option label="全部" value="" />
+                <el-option label="有進行中課程 (Active Course)" value="active" />
+                <el-option label="無進行中課程 (No Active Course)" value="inactive" />
+              </el-select>
+            </el-col>
+            <el-col :span="6" :xs="24">
+               <el-date-picker
+                v-model="childDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="建立日期起"
+                end-placeholder="建立日期止"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-col>
+            <el-col :span="6" :xs="24" class="text-right">
+              <el-button @click="clearChildFilters">清除篩選</el-button>
+               <el-button type="primary" @click="exportChildData">匯出 CSV</el-button>
+            </el-col>
+          </el-row>
+        </el-card>
+
         <div class="tab-actions">
           <el-button type="primary" @click="openCreateChildDialog">
             <Plus class="w-4 h-4 mr-1" />
@@ -71,13 +150,19 @@
 
         <el-card shadow="never" class="table-card">
           <!-- Desktop Table -->
-          <el-table :data="children" v-loading="childrenLoading" style="width: 100%" class="hidden-xs-only">
+          <el-table :data="filteredChildren" v-loading="childrenLoading" style="width: 100%" class="hidden-xs-only">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="name" label="學員名稱" />
             <el-table-column prop="date_of_birth" label="出生日期" width="120" />
             <el-table-column prop="age_group" label="年齡組別" width="100" />
             <el-table-column prop="skill_level" label="技能等級" width="100" />
             <el-table-column prop="parentName" label="家長" />
+            <el-table-column label="課程狀態">
+              <template #default="{ row }">
+                <el-tag v-if="row.active_courses && row.active_courses.length > 0" type="success">進行中 ({{ row.active_courses.length }})</el-tag>
+                <el-tag v-else type="info">無課程</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column label="操作" width="200">
               <template #default="{ row }">
                 <el-button-group>
@@ -90,7 +175,7 @@
 
           <!-- Mobile Card List -->
           <div class="mobile-user-list hidden-sm-and-up">
-            <div v-for="child in children" :key="child.id" class="mobile-user-card">
+            <div v-for="child in filteredChildren" :key="child.id" class="mobile-user-card">
               <div class="user-card-header">
                 <span class="user-name">{{ child.name }}</span>
                 <el-tag size="small">{{ child.age_group }}</el-tag>
@@ -98,6 +183,10 @@
               <div class="user-card-body">
                 <p><span class="label">出生日期:</span> {{ child.date_of_birth }}</p>
                 <p><span class="label">技能等級:</span> {{ child.skill_level }}</p>
+                <p><span class="label">課程狀態:</span> 
+                  <span v-if="child.active_courses && child.active_courses.length > 0" class="text-green-600">進行中</span>
+                  <span v-else class="text-gray-400">無課程</span>
+                </p>
                 <p><span class="label">家長:</span> {{ child.parentName }}</p>
               </div>
               <div class="user-card-actions">
@@ -160,9 +249,9 @@
           </el-col>
         </el-row>
 
-        <!-- 子女管理部分 -->
+        <!--學員管理部分 -->
         <div v-if="isEditUser && userForm.role === 'PARENT'" class="children-mgmt-section">
-          <el-divider content-position="left">子女資料管理</el-divider>
+          <el-divider content-position="left">學員資料管理</el-divider>
           <div class="children-list-edit">
             <el-table :data="userForm.children" size="small" border>
               <el-table-column prop="name" label="姓名" />
@@ -176,7 +265,7 @@
             </el-table>
             <div class="mt-2 text-right">
               <el-button type="success" size="small" plain @click="prepareAddChildForUser">
-                <Plus class="w-3 h-3 mr-1" /> 新增子女
+                <Plus class="w-3 h-3 mr-1" /> 新增學員
               </el-button>
             </div>
           </div>
@@ -241,11 +330,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted, reactive } from 'vue';
+import { ref, onMounted, reactive, computed } from 'vue';
 import { useUserStore } from '../stores/userStore';
 import api from '../api';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus } from 'lucide-vue-next';
+import { Plus, Search } from 'lucide-vue-next';
 
 const userStore = useUserStore();
 const activeTab = ref('users');
@@ -258,6 +347,23 @@ const isEditUser = ref(false);
 const resetPwdDialogVisible = ref(false);
 const selectedUserId = ref(null);
 const newPassword = ref('');
+
+// User Filters
+const userSearchQuery = ref('');
+const userRoleFilter = ref('');
+const userDateRange = ref(null);
+
+// Child Management
+const children = ref([]);
+const childrenLoading = ref(false);
+const childDialogVisible = ref(false);
+const isEditChild = ref(false);
+const parentList = ref([]);
+
+// Child Filters
+const childSearchQuery = ref('');
+const childCourseStatusFilter = ref('');
+const childDateRange = ref(null);
 
 const userForm = reactive({
   id: null,
@@ -272,13 +378,6 @@ const userForm = reactive({
   children: []
 });
 
-// Child Management
-const children = ref([]);
-const childrenLoading = ref(false);
-const childDialogVisible = ref(false);
-const isEditChild = ref(false);
-const parentList = ref([]);
-
 const childForm = reactive({
   id: null,
   name: '',
@@ -287,6 +386,130 @@ const childForm = reactive({
   skill_level: 'BEGINNER',
   parent: null
 });
+
+// Helper Functions
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return date.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+};
+
+// Computed Properties for Filtering
+const filteredUsers = computed(() => {
+  return users.value.filter(user => {
+    // 1. Search Query (Name, Email, Username, ID)
+    const query = userSearchQuery.value.toLowerCase();
+    const matchQuery = !query || 
+      (user.name && user.name.toLowerCase().includes(query)) ||
+      (user.email && user.email.toLowerCase().includes(query)) ||
+      (user.username && user.username.toLowerCase().includes(query)) ||
+      (String(user.id).includes(query));
+    
+    // 2. Role Filter
+    const matchRole = !userRoleFilter.value || user.role === userRoleFilter.value;
+
+    // 3. Date Range Filter
+    let matchDate = true;
+    if (userDateRange.value && userDateRange.value.length === 2 && user.date_joined) {
+      const joinedDate = new Date(user.date_joined).toISOString().split('T')[0];
+      matchDate = joinedDate >= userDateRange.value[0] && joinedDate <= userDateRange.value[1];
+    }
+
+    return matchQuery && matchRole && matchDate;
+  });
+});
+
+const filteredChildren = computed(() => {
+  return children.value.filter(child => {
+    // 1. Search Query (Name, ID)
+    const query = childSearchQuery.value.toLowerCase();
+    const matchQuery = !query || 
+      (child.name && child.name.toLowerCase().includes(query)) ||
+      (String(child.id).includes(query));
+
+    // 2. Course Status Filter
+    let matchStatus = true;
+    if (childCourseStatusFilter.value === 'active') {
+      matchStatus = child.active_courses && child.active_courses.length > 0;
+    } else if (childCourseStatusFilter.value === 'inactive') {
+      matchStatus = !child.active_courses || child.active_courses.length === 0;
+    }
+
+    // 3. Date Range Filter (Using created_at if available, otherwise skip)
+    // Assuming backend adds created_at to ChildSerializer, if not, this filter won't work effectively
+    // But we can check if child object has it.
+    let matchDate = true;
+    if (childDateRange.value && childDateRange.value.length === 2 && child.created_at) {
+      const createdDate = new Date(child.created_at).toISOString().split('T')[0];
+      matchDate = createdDate >= childDateRange.value[0] && createdDate <= childDateRange.value[1];
+    }
+
+    return matchQuery && matchStatus && matchDate;
+  });
+});
+
+// Filter Actions
+const clearUserFilters = () => {
+  userSearchQuery.value = '';
+  userRoleFilter.value = '';
+  userDateRange.value = null;
+};
+
+const clearChildFilters = () => {
+  childSearchQuery.value = '';
+  childCourseStatusFilter.value = '';
+  childDateRange.value = null;
+};
+
+const exportUserData = () => {
+  const headers = ['ID', 'Username', 'Name', 'Email', 'Role', 'Points', 'Date Joined'];
+  const csvContent = [
+    headers.join(','),
+    ...filteredUsers.value.map(u => [
+      u.id,
+      `"${u.username}"`,
+      `"${u.name}"`,
+      `"${u.email}"`,
+      u.role,
+      u.points,
+      u.date_joined ? new Date(u.date_joined).toISOString().split('T')[0] : ''
+    ].join(','))
+  ].join('\n');
+
+  downloadCSV(csvContent, 'users_export.csv');
+};
+
+const exportChildData = () => {
+  const headers = ['ID', 'Name', 'DOB', 'Age Group', 'Skill Level', 'Parent', 'Active Courses'];
+  const csvContent = [
+    headers.join(','),
+    ...filteredChildren.value.map(c => [
+      c.id,
+      `"${c.name}"`,
+      c.date_of_birth,
+      c.age_group,
+      c.skill_level,
+      `"${c.parentName}"`,
+      `"${(c.active_courses || []).join('; ')}"`
+    ].join(','))
+  ].join('\n');
+
+  downloadCSV(csvContent, 'children_export.csv');
+};
+
+const downloadCSV = (content, filename) => {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+};
 
 const fetchUsers = async () => {
   usersLoading.value = true;
@@ -368,7 +591,7 @@ const saveUser = async () => {
         phone_number: userForm.phoneNumber,
       });
       // 之後用管理端點更新角色、積分等
-      await api.put(`/users/${created.id}/`, {
+      await api.patch(`/users/${created.id}/`, {
         role: userForm.role,
         points: userForm.points,
         level: userForm.level,
@@ -378,7 +601,8 @@ const saveUser = async () => {
     userDialogVisible.value = false;
     fetchUsers();
   } catch (error) {
-    ElMessage.error('操作失敗');
+    const errorMsg = error.response?.data ? JSON.stringify(error.response.data) : (error.message || '操作失敗');
+    ElMessage.error(errorMsg);
   }
 };
 

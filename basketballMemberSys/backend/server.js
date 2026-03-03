@@ -1,12 +1,17 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+import crypto from 'crypto'
 import authRoutes from './routes/authRoutes.js'
 import userRoutes from './routes/userRoutes.js'
 import activityRoutes from './routes/activityRoutes.js'
 import childRoutes from './routes/childRoutes.js'
 
 dotenv.config()
+
+// Generate a random JWT secret on startup to force re-login for all users
+process.env.JWT_SECRET = crypto.randomBytes(64).toString('hex');
+console.log('Generated new JWT_SECRET for session invalidation on startup.');
 
 const app = express()
 const PORT = process.env.PORT || 3000

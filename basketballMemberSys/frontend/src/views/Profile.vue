@@ -90,7 +90,37 @@
             <template #header>
               <h3>最近報名紀錄</h3>
             </template>
-            <el-empty description="即將推出報名詳情查詢" :image-size="60" />
+            
+            <div v-if="registrations && registrations.length > 0" class="registrations-list">
+              <div v-for="reg in registrations" :key="reg.id" class="reg-item">
+                <div class="reg-info">
+                   <div class="reg-header">
+                     <span class="reg-title">{{ reg.activity?.title }}</span>
+                     <el-tag :type="getStatusType(reg.status)" size="small">
+                       {{ getStatusLabel(reg.status) }}
+                     </el-tag>
+                   </div>
+                   <div class="reg-details">
+                     <span class="detail-item">學員: {{ reg.child?.name }}</span>
+                     <span class="detail-item">日期: {{ reg.activity?.date }}</span>
+                     <span class="detail-item" v-if="reg.activity?.price > 0">費用: ${{ reg.activity?.price }}</span>
+                     <span class="detail-item text-green-600" v-else>費用: 免費</span>
+                   </div>
+                </div>
+                <div class="reg-actions">
+                  <el-button 
+                    v-if="['PENDING_PAYMENT', 'AWAITING_APPROVAL', 'CONFIRMED'].includes(reg.status)" 
+                    type="danger" 
+                    link 
+                    size="small" 
+                    @click="cancelRegistration(reg)"
+                  >
+                    取消報名
+                  </el-button>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="尚無報名紀錄" :image-size="60" />
           </el-card>
         </div>
       </div>
@@ -263,16 +293,66 @@ const saveAvatar = () => {
 };
 
 
+const registrations = ref([]);
+
 const fetchProfile = async () => {
   loading.value = true;
   try {
     const data = await api.get('/users/profile/'); // 更新 API 端點
     profile.value = data;
+    await fetchRegistrations();
   } catch (error) {
     console.error('Failed to fetch profile:', error);
   } finally {
     loading.value = false;
   }
+};
+
+const fetchRegistrations = async () => {
+  try {
+    const data = await api.get('/activities/registrations/');
+    registrations.value = Array.isArray(data) ? data : (data.results || []);
+    // Sort by date descending
+    registrations.value.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  } catch (error) {
+    console.error('Fetch registrations failed:', error);
+  }
+};
+
+const getStatusLabel = (status) => {
+  const map = {
+    'PENDING_PAYMENT': '待繳費',
+    'AWAITING_APPROVAL': '待審核',
+    'CONFIRMED': '已確認',
+    'CANCELLED': '已取消'
+  };
+  return map[status] || status;
+};
+
+const getStatusType = (status) => {
+  const map = {
+    'PENDING_PAYMENT': 'warning',
+    'AWAITING_APPROVAL': 'info',
+    'CONFIRMED': 'success',
+    'CANCELLED': 'danger'
+  };
+  return map[status] || '';
+};
+
+const cancelRegistration = (reg) => {
+  ElMessageBox.confirm(`確定要取消 ${reg.activity?.title} 的報名嗎？`, '警告', {
+    type: 'warning',
+    confirmButtonText: '確定取消',
+    cancelButtonText: '暫不取消'
+  }).then(async () => {
+    try {
+      await api.post(`/activities/registrations/${reg.id}/cancel/`);
+      ElMessage.success('已取消報名');
+      fetchRegistrations();
+    } catch (error) {
+      ElMessage.error(error.response?.data?.detail || '取消失敗');
+    }
+  });
 };
 
 const handleExportData = async () => {
@@ -544,4 +624,51 @@ onMounted(fetchProfile);
   background-color: #ecf5ff;
   color: #409eff;
 }
+
+/* 報名紀錄 */
+.registrations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reg-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  background-color: #f8fafc;
+}
+
+.reg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.reg-title {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.reg-details {
+  font-size: 0.85rem;
+  color: #64748b;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.reg-actions {
+  text-align: right;
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+}
+
+.text-green-600 {
+  color: #10b981;
+}
+
+/* 響應式 */
 </style>

@@ -12,6 +12,59 @@
 
     <el-tabs v-model="activeTab" class="management-tabs">
       <el-tab-pane label="活動列表" name="list">
+        
+        <!-- 搜尋與篩選區域 -->
+        <el-card shadow="never" class="filter-card mb-4">
+          <el-row :gutter="20">
+            <el-col :span="6" :xs="24">
+              <el-input
+                v-model="searchQuery"
+                placeholder="搜尋活動名稱、ID"
+                clearable
+                prefix-icon="Search"
+              />
+            </el-col>
+            <el-col :span="6" :xs="24">
+              <el-select v-model="filterType" placeholder="活動類型" clearable style="width: 100%">
+                <el-option label="全部類型" value="" />
+                <el-option label="課程 (Course)" value="COURSE" />
+                <el-option label="訓練 (Training)" value="TRAINING" />
+                <el-option label="比賽 (Competition)" value="COMPETITION" />
+                <el-option label="特別活動 (Special Event)" value="SPECIAL_EVENT" />
+              </el-select>
+            </el-col>
+            <el-col :span="6" :xs="24">
+              <el-select v-model="filterStatus" placeholder="活動狀態" clearable style="width: 100%">
+                <el-option label="全部狀態" value="" />
+                <el-option label="報名中 (Registering)" value="registering" />
+                <el-option label="已結束 (Ended)" value="ended" />
+                <el-option label="已滿額 (Full)" value="full" />
+              </el-select>
+            </el-col>
+            <el-col :span="6" :xs="24">
+               <el-date-picker
+                v-model="searchDateRange"
+                type="daterange"
+                range-separator="至"
+                start-placeholder="日期起"
+                end-placeholder="日期止"
+                value-format="YYYY-MM-DD"
+                style="width: 100%"
+              />
+            </el-col>
+          </el-row>
+          <el-row :gutter="20" class="mt-4">
+             <el-col :span="12" :xs="24">
+               <span class="demonstration text-gray-500 mr-2">參與人數:</span>
+               <el-slider v-model="filterParticipantsRange" range :max="50" style="width: 80%; display: inline-block; vertical-align: middle;" />
+             </el-col>
+             <el-col :span="12" :xs="24" class="text-right">
+                <el-button @click="clearFilters">清除篩選</el-button>
+                <el-button type="primary" @click="exportActivityData">匯出 CSV</el-button>
+             </el-col>
+          </el-row>
+        </el-card>
+
         <div class="table-container">
           <el-table :data="filteredActivities" stripe style="width: 100%" row-key="id">
             <el-table-column type="expand">
@@ -38,8 +91,11 @@
                     </el-table-column>
                     <el-table-column label="收據" width="100">
                       <template #default="scope">
-                        <el-button v-if="scope.row.payment_receipt" type="primary" link @click="viewReceipt(scope.row)">查看</el-button>
-                        <span v-else>未上傳</span>
+                        <span v-if="scope.row.activity?.price == 0">免費</span>
+                        <template v-else>
+                          <el-button v-if="scope.row.payment_receipt" type="primary" link @click="viewReceipt(scope.row)">查看</el-button>
+                          <span v-else>未上傳</span>
+                        </template>
                       </template>
                     </el-table-column>
                     <el-table-column label="操作" width="150">
@@ -52,7 +108,7 @@
                             @click="approveRegistration(scope.row)"
                           >確認</el-button>
                           <el-button 
-                            v-if="scope.row.status === 'AWAITING_APPROVAL'" 
+                            v-if="scope.row.status === 'AWAITING_APPROVAL' || scope.row.status === 'CONFIRMED'" 
                             type="danger" 
                             size="small" 
                             @click="rejectRegistration(scope.row)"
@@ -272,7 +328,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Calendar, Trophy, Lightning, Star } from '@element-plus/icons-vue'
+import { Plus, Calendar, Trophy, Lightning, Star, Search } from '@element-plus/icons-vue'
 import { useUserStore } from '../stores/userStore'
 import api from '../api'
 
@@ -285,6 +341,13 @@ const isSubmitting = ref(false)
 
 const showReceiptDialog = ref(false)
 const selectedRegistration = ref(null)
+
+// Filters
+const searchQuery = ref('')
+const filterType = ref('')
+const filterStatus = ref('')
+const searchDateRange = ref(null)
+const filterParticipantsRange = ref([0, 50])
 
 const formData = ref({
   title: '',
@@ -307,12 +370,90 @@ const rules = {
 }
 
 const filteredActivities = computed(() => {
-  return [...activities.value].sort((a, b) => {
+  return activities.value.filter(activity => {
+    // 1. Search Query
+    const query = searchQuery.value.toLowerCase()
+    const matchQuery = !query || 
+      (activity.title && activity.title.toLowerCase().includes(query)) ||
+      (activity.description && activity.description.toLowerCase().includes(query)) ||
+      (activity.location && activity.location.toLowerCase().includes(query)) ||
+      (String(activity.id).includes(query))
+
+    // 2. Type Filter
+    const matchType = !filterType.value || activity.type === filterType.value
+
+    // 3. Status Filter
+    let matchStatus = true
+    if (filterStatus.value) {
+      const now = new Date()
+      const activityDate = new Date(activity.dateTime || `${activity.date}T${activity.time}`)
+      const isFull = activity.currentParticipants >= activity.maxParticipants
+
+      if (filterStatus.value === 'registering') {
+        matchStatus = activityDate > now && !isFull
+      } else if (filterStatus.value === 'ended') {
+        matchStatus = activityDate < now
+      } else if (filterStatus.value === 'full') {
+        matchStatus = isFull
+      }
+    }
+
+    // 4. Date Range Filter
+    let matchDate = true
+    if (searchDateRange.value && searchDateRange.value.length === 2 && activity.date) {
+      matchDate = activity.date >= searchDateRange.value[0] && activity.date <= searchDateRange.value[1]
+    }
+
+    // 5. Participants Range Filter
+    const matchParticipants = 
+      activity.currentParticipants >= filterParticipantsRange.value[0] &&
+      activity.currentParticipants <= filterParticipantsRange.value[1]
+
+    return matchQuery && matchType && matchStatus && matchDate && matchParticipants
+  }).sort((a, b) => {
     const dateA = a.dateTime || a.date_time || `${a.date}T${a.time}`
     const dateB = b.dateTime || b.date_time || `${b.date}T${b.time}`
     return new Date(dateA) - new Date(dateB)
   })
 })
+
+const clearFilters = () => {
+  searchQuery.value = ''
+  filterType.value = ''
+  filterStatus.value = ''
+  searchDateRange.value = null
+  filterParticipantsRange.value = [0, 50]
+}
+
+const exportActivityData = () => {
+  const headers = ['ID', 'Title', 'Type', 'Date', 'Time', 'Location', 'Price', 'Participants', 'Max Participants']
+  const csvContent = [
+    headers.join(','),
+    ...filteredActivities.value.map(a => [
+      a.id,
+      `"${a.title}"`,
+      a.type,
+      a.date,
+      a.time,
+      `"${a.location}"`,
+      a.price,
+      a.currentParticipants,
+      a.maxParticipants
+    ].join(','))
+  ].join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', 'activities_export.csv')
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+}
 
 const competitionCount = computed(() => activities.value.filter(a => a.type === 'COMPETITION').length)
 const trainingCount = computed(() => activities.value.filter(a => a.type === 'TRAINING').length)
