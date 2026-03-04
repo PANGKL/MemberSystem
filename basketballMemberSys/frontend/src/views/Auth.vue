@@ -57,7 +57,11 @@ const handleLogin = async () => {
       const success = await userStore.login(loginForm.username, loginForm.password);
       if (success) {
         ElMessage.success('登入成功');
-        router.push('/');
+        if (userStore.isAdmin) {
+          router.push('/admin/users');
+        } else {
+          router.push('/');
+        }
       } else {
         // 錯誤訊息已在 api/index.js 和 userStore 中處理
       }

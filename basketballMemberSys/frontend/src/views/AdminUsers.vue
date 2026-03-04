@@ -13,7 +13,7 @@
             <el-col :span="6" :xs="24">
               <el-input
                 v-model="userSearchQuery"
-                placeholder="搜尋姓名、Email、用戶名"
+                placeholder="搜尋"
                 clearable
                 prefix-icon="Search"
               />
@@ -105,7 +105,7 @@
 
       <!-- 學員管理選項卡 -->
       <el-tab-pane label="學員管理" name="children">
-        <!-- 學員搜尋與篩選區域 -->
+        <!-- 搜尋與篩選區域 -->
         <el-card shadow="never" class="filter-card mb-4">
           <el-row :gutter="20">
             <el-col :span="6" :xs="24">
@@ -117,10 +117,14 @@
               />
             </el-col>
             <el-col :span="6" :xs="24">
-              <el-select v-model="childCourseStatusFilter" placeholder="課程狀態" clearable style="width: 100%">
+              <el-select v-model="childClassFilter" placeholder="班級篩選" clearable style="width: 100%">
                 <el-option label="全部" value="" />
-                <el-option label="有進行中課程 (Active Course)" value="active" />
-                <el-option label="無進行中課程 (No Active Course)" value="inactive" />
+                <el-option 
+                  v-for="cls in classes" 
+                  :key="cls.id" 
+                  :label="`${cls.academic_year_name} - ${cls.name}`" 
+                  :value="cls.id" 
+                />
               </el-select>
             </el-col>
             <el-col :span="6" :xs="24">
@@ -154,8 +158,11 @@
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="name" label="學員名稱" />
             <el-table-column prop="date_of_birth" label="出生日期" width="120" />
-            <el-table-column prop="age_group" label="年齡組別" width="100" />
-            <el-table-column prop="skill_level" label="技能等級" width="100" />
+            <el-table-column prop="student_class_name" label="班級" width="150">
+              <template #default="{ row }">
+                {{ row.academic_year_name }} - {{ row.student_class_name || '未分班' }}
+              </template>
+            </el-table-column>
             <el-table-column prop="parentName" label="家長" />
             <el-table-column label="課程狀態">
               <template #default="{ row }">
@@ -178,11 +185,10 @@
             <div v-for="child in filteredChildren" :key="child.id" class="mobile-user-card">
               <div class="user-card-header">
                 <span class="user-name">{{ child.name }}</span>
-                <el-tag size="small">{{ child.age_group }}</el-tag>
+                <el-tag size="small">{{ child.academic_year_name }} - {{ child.student_class_name || '未分班' }}</el-tag>
               </div>
               <div class="user-card-body">
                 <p><span class="label">出生日期:</span> {{ child.date_of_birth }}</p>
-                <p><span class="label">技能等級:</span> {{ child.skill_level }}</p>
                 <p><span class="label">課程狀態:</span> 
                   <span v-if="child.active_courses && child.active_courses.length > 0" class="text-green-600">進行中</span>
                   <span v-else class="text-gray-400">無課程</span>
@@ -195,6 +201,64 @@
               </div>
             </div>
           </div>
+        </el-card>
+      </el-tab-pane>
+
+      <!-- 班別管理選項卡 -->
+      <el-tab-pane label="班別管理" name="classes">
+        <div class="tab-actions">
+          <el-button type="primary" @click="openCreateClassDialog">
+            <Plus class="w-4 h-4 mr-1" />
+            新增班別
+          </el-button>
+        </div>
+
+        <el-card shadow="never" class="table-card">
+          <el-table :data="classes" v-loading="classesLoading" style="width: 100%">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="academic_year_name" label="學年度" />
+            <el-table-column prop="name" label="班別名稱" />
+            <el-table-column label="操作" width="220">
+              <template #default="{ row }">
+                <el-button size="small" @click="handleEditClass(row)">編輯</el-button>
+                <el-button size="small" type="primary" @click="openClassStudents(row)">查看學生</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
+      <!-- 學年管理選項卡 -->
+      <el-tab-pane label="學年管理" name="academic_years">
+        <div class="tab-actions">
+          <el-button type="primary" @click="openCreateAcademicYearDialog">
+            <Plus class="w-4 h-4 mr-1" />
+            新增學年
+          </el-button>
+        </div>
+
+        <el-card shadow="never" class="table-card">
+          <el-table :data="academicYears" v-loading="academicYearsLoading" style="width: 100%">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="name" label="學年度名稱" />
+            <el-table-column prop="start_date" label="起始日期" />
+            <el-table-column prop="end_date" label="結束日期" />
+            <el-table-column prop="is_active" label="狀態">
+              <template #default="{ row }">
+                <el-tag :type="row.is_active ? 'success' : 'danger'">
+                  {{ row.is_active ? '啟用' : '停用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200">
+              <template #default="{ row }">
+                <el-button-group>
+                  <el-button size="small" @click="handleEditAcademicYear(row)">編輯</el-button>
+                  <el-button size="small" type="danger" @click="handleDeleteAcademicYear(row)">刪除</el-button>
+                </el-button-group>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-card>
       </el-tab-pane>
     </el-tabs>
@@ -255,7 +319,11 @@
           <div class="children-list-edit">
             <el-table :data="userForm.children" size="small" border>
               <el-table-column prop="name" label="姓名" />
-              <el-table-column prop="age_group" label="組別" width="80" />
+              <el-table-column prop="student_class_name" label="班級">
+                <template #default="{ row }">
+                  {{ row.academic_year_name }} - {{ row.student_class_name || '未分班' }}
+                </template>
+              </el-table-column>
               <el-table-column label="操作" width="120">
                 <template #default="{ row }">
                   <el-button type="primary" size="small" link @click="handleEditChild(row)">編輯</el-button>
@@ -286,20 +354,14 @@
         <el-form-item label="出生日期">
           <el-input v-model="childForm.date_of_birth" type="date" />
         </el-form-item>
-        <el-form-item label="年齡組別">
-          <el-select v-model="childForm.age_group" class="w-full">
-            <el-option label="U10" value="U10" />
-            <el-option label="U12" value="U12" />
-            <el-option label="U14" value="U14" />
-            <el-option label="U16" value="U16" />
-            <el-option label="U18" value="U18" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="技能等級">
-          <el-select v-model="childForm.skill_level" class="w-full">
-            <el-option label="BEGINNER" value="BEGINNER" />
-            <el-option label="INTERMEDIATE" value="INTERMEDIATE" />
-            <el-option label="ADVANCED" value="ADVANCED" />
+        <el-form-item label="班級">
+          <el-select v-model="childForm.student_class" class="w-full" clearable placeholder="選擇班級">
+            <el-option 
+              v-for="cls in classes" 
+              :key="cls.id" 
+              :label="`${cls.academic_year_name} - ${cls.name}`" 
+              :value="cls.id" 
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="家長">
@@ -326,17 +388,84 @@
         <el-button type="primary" @click="confirmResetPassword">確認重設</el-button>
       </template>
     </el-dialog>
+
+    <!-- 建立班別對話框 -->
+    <el-dialog v-model="classDialogVisible" title="建立班別" width="90%" style="max-width: 500px">
+      <el-form :model="classForm" label-position="top">
+        <el-form-item label="學年度" required>
+          <el-select v-model="classForm.academic_year" placeholder="請選擇學年度" style="width: 100%" v-loading="academicYearsLoading">
+            <el-option 
+              v-for="year in activeAcademicYears" 
+              :key="year.id" 
+              :label="year.name" 
+              :value="year.id" 
+            />
+          </el-select>
+          <div v-if="activeAcademicYears.length === 0 && !academicYearsLoading" class="text-xs text-red-500 mt-1">
+            目前無啟用的學年度，請先至「學年管理」新增或啟用學年。
+          </div>
+        </el-form-item>
+        <el-form-item label="班別名稱" required>
+          <el-input 
+            v-model="classForm.name" 
+            placeholder="請輸入班別名稱 (限制 20 字)" 
+            maxlength="20" 
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="classDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveClass" :disabled="activeAcademicYears.length === 0">建立</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 學年編輯/新增對話框 -->
+    <el-dialog v-model="academicYearDialogVisible" :title="isEditAcademicYear ? '編輯學年' : '新增學年'" width="90%" style="max-width: 500px">
+      <el-form :model="academicYearForm" label-position="top">
+        <el-form-item label="學年度名稱" required>
+          <el-input v-model="academicYearForm.name" placeholder="例如：113" />
+        </el-form-item>
+        <el-form-item label="起始日期" required>
+          <el-date-picker v-model="academicYearForm.start_date" type="date" placeholder="選擇日期" style="width: 100%" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="結束日期" required>
+          <el-date-picker v-model="academicYearForm.end_date" type="date" placeholder="選擇日期" style="width: 100%" value-format="YYYY-MM-DD" />
+        </el-form-item>
+        <el-form-item label="狀態">
+          <el-switch v-model="academicYearForm.is_active" active-text="啟用" inactive-text="停用" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="academicYearDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveAcademicYear">儲存</el-button>
+      </template>
+    </el-dialog>
   </div>
+    <!-- 班別學生列表對話框 -->
+    <el-dialog v-model="classStudentsDialogVisible" :title="`班別學生列表 - ${selectedClass?.academic_year_name || ''} ${selectedClass?.name || ''}`" width="90%" style="max-width: 720px">
+      <el-table :data="classStudents" v-loading="classStudentsLoading" style="width: 100%">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="姓名" />
+        <el-table-column prop="date_of_birth" label="出生日期" width="140" />
+        <el-table-column prop="parent_name" label="家長" />
+      </el-table>
+      <template #footer>
+        <el-button @click="classStudentsDialogVisible = false">關閉</el-button>
+      </template>
+    </el-dialog>
 </template>
 
 <script setup>
 import { ref, onMounted, reactive, computed } from 'vue';
 import { useUserStore } from '../stores/userStore';
+import { useRouter } from 'vue-router';
 import api from '../api';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Search } from 'lucide-vue-next';
 
 const userStore = useUserStore();
+const router = useRouter();
 const activeTab = ref('users');
 
 // User Management
@@ -362,8 +491,36 @@ const parentList = ref([]);
 
 // Child Filters
 const childSearchQuery = ref('');
-const childCourseStatusFilter = ref('');
+const childClassFilter = ref('');
 const childDateRange = ref(null);
+
+// Class Management
+const classes = ref([]);
+const classesLoading = ref(false);
+const classDialogVisible = ref(false);
+const classForm = reactive({
+  academic_year: null,
+  name: ''
+});
+
+// Class Students
+const classStudentsDialogVisible = ref(false);
+const classStudentsLoading = ref(false);
+const classStudents = ref([]);
+const selectedClass = ref(null);
+
+// Academic Year Management
+const academicYears = ref([]);
+const academicYearsLoading = ref(false);
+const academicYearDialogVisible = ref(false);
+const isEditAcademicYear = ref(false);
+const academicYearForm = reactive({
+  id: null,
+  name: '',
+  start_date: '',
+  end_date: '',
+  is_active: true
+});
 
 const userForm = reactive({
   id: null,
@@ -382,8 +539,7 @@ const childForm = reactive({
   id: null,
   name: '',
   date_of_birth: '',
-  age_group: 'U10',
-  skill_level: 'BEGINNER',
+  student_class: null,
   parent: null
 });
 
@@ -427,12 +583,10 @@ const filteredChildren = computed(() => {
       (child.name && child.name.toLowerCase().includes(query)) ||
       (String(child.id).includes(query));
 
-    // 2. Course Status Filter
-    let matchStatus = true;
-    if (childCourseStatusFilter.value === 'active') {
-      matchStatus = child.active_courses && child.active_courses.length > 0;
-    } else if (childCourseStatusFilter.value === 'inactive') {
-      matchStatus = !child.active_courses || child.active_courses.length === 0;
+    // 2. Class Filter
+    let matchClass = true;
+    if (childClassFilter.value) {
+      matchClass = child.student_class === childClassFilter.value;
     }
 
     // 3. Date Range Filter (Using created_at if available, otherwise skip)
@@ -444,8 +598,12 @@ const filteredChildren = computed(() => {
       matchDate = createdDate >= childDateRange.value[0] && createdDate <= childDateRange.value[1];
     }
 
-    return matchQuery && matchStatus && matchDate;
+    return matchQuery && matchClass && matchDate;
   });
+});
+
+const activeAcademicYears = computed(() => {
+  return academicYears.value.filter(year => year.is_active);
 });
 
 // Filter Actions
@@ -457,7 +615,7 @@ const clearUserFilters = () => {
 
 const clearChildFilters = () => {
   childSearchQuery.value = '';
-  childCourseStatusFilter.value = '';
+  childClassFilter.value = '';
   childDateRange.value = null;
 };
 
@@ -480,15 +638,15 @@ const exportUserData = () => {
 };
 
 const exportChildData = () => {
-  const headers = ['ID', 'Name', 'DOB', 'Age Group', 'Skill Level', 'Parent', 'Active Courses'];
+  const headers = ['ID', 'Name', 'DOB', 'Academic Year', 'Class', 'Parent', 'Active Courses'];
   const csvContent = [
     headers.join(','),
     ...filteredChildren.value.map(c => [
       c.id,
       `"${c.name}"`,
       c.date_of_birth,
-      c.age_group,
-      c.skill_level,
+      c.academic_year_name || '',
+      c.student_class_name || '',
       `"${c.parentName}"`,
       `"${(c.active_courses || []).join('; ')}"`
     ].join(','))
@@ -529,7 +687,8 @@ const fetchChildren = async () => {
     const data = await api.get('/users/children/');
     const childrenWithParentNames = data.map(child => ({
       ...child,
-      parentName: child.parent?.name || 'N/A'
+      // 後端提供 parent_name；若不存在則嘗試從嵌套物件回退，最後為 N/A
+      parentName: child.parent_name || child.parent?.name || 'N/A'
     }));
     children.value = childrenWithParentNames;
   } catch (error) {
@@ -546,6 +705,119 @@ const fetchParentList = async () => {
   } catch (error) {
     console.error('Fetch parent list failed:', error);
   }
+};
+
+const fetchClasses = async () => {
+  classesLoading.value = true;
+  try {
+    const data = await api.get('/users/classes/');
+    classes.value = data;
+  } catch (error) {
+    console.error('Fetch classes failed:', error);
+  } finally {
+    classesLoading.value = false;
+  }
+};
+
+const fetchAcademicYears = async () => {
+  academicYearsLoading.value = true;
+  try {
+    const data = await api.get('/users/academic-years/');
+    academicYears.value = data;
+  } catch (error) {
+    console.error('Fetch academic years failed:', error);
+  } finally {
+    academicYearsLoading.value = false;
+  }
+};
+
+const openCreateClassDialog = () => {
+  if (activeAcademicYears.value.length === 0) {
+    ElMessage.warning('目前無啟用的學年度，請先至「學年管理」新增或啟用學年。');
+  }
+  classForm.academic_year = activeAcademicYears.value.length > 0 ? activeAcademicYears.value[0].id : null;
+  classForm.name = '';
+  classDialogVisible.value = true;
+};
+
+const saveClass = async () => {
+  if (!classForm.academic_year || !classForm.name) {
+    ElMessage.warning('請填寫完整資料');
+    return;
+  }
+  try {
+    await api.post('/users/classes/', classForm);
+    ElMessage.success('班別建立成功');
+    classDialogVisible.value = false;
+    fetchClasses();
+  } catch (error) {
+     const errorMsg = error.response?.data?.name ? '班別名稱重複或無效' : '建立失敗';
+     ElMessage.error(errorMsg);
+  }
+};
+
+const handleEditClass = (row) => {
+  router.push(`/admin/class/edit/${row.id}`);
+};
+
+const openClassStudents = async (row) => {
+  selectedClass.value = row;
+  classStudentsDialogVisible.value = true;
+  classStudentsLoading.value = true;
+  try {
+    const data = await api.get(`/users/classes/${row.id}/students/`);
+    classStudents.value = data;
+  } catch (e) {
+    ElMessage.error('載入學生列表失敗');
+  } finally {
+    classStudentsLoading.value = false;
+  }
+};
+
+const openCreateAcademicYearDialog = () => {
+  isEditAcademicYear.value = false;
+  Object.assign(academicYearForm, { id: null, name: '', start_date: '', end_date: '', is_active: true });
+  academicYearDialogVisible.value = true;
+};
+
+const handleEditAcademicYear = (row) => {
+  isEditAcademicYear.value = true;
+  Object.assign(academicYearForm, row);
+  academicYearDialogVisible.value = true;
+};
+
+const saveAcademicYear = async () => {
+  if (!academicYearForm.name || !academicYearForm.start_date || !academicYearForm.end_date) {
+    ElMessage.warning('請填寫完整資料');
+    return;
+  }
+  try {
+    if (isEditAcademicYear.value) {
+      await api.put(`/users/academic-years/${academicYearForm.id}/`, academicYearForm);
+      ElMessage.success('學年更新成功');
+    } else {
+      await api.post('/users/academic-years/', academicYearForm);
+      ElMessage.success('學年建立成功');
+    }
+    academicYearDialogVisible.value = false;
+    fetchAcademicYears();
+  } catch (error) {
+    const errorMsg = error.response?.data?.name ? '學年名稱重複或無效' : '操作失敗';
+    ElMessage.error(errorMsg);
+  }
+};
+
+const handleDeleteAcademicYear = (row) => {
+  ElMessageBox.confirm(`確定要刪除學年 ${row.name} 嗎？`, '警告', { type: 'warning' })
+    .then(async () => {
+      try {
+        await api.delete(`/users/academic-years/${row.id}/`);
+        ElMessage.success('學年已刪除');
+        fetchAcademicYears();
+      } catch (error) {
+        ElMessage.error('刪除失敗');
+      }
+    });
 };
 
 const openCreateUserDialog = () => {
@@ -638,7 +910,7 @@ const handleDeleteUser = (user) => {
 
 const openCreateChildDialog = () => {
   isEditChild.value = false;
-  Object.assign(childForm, { id: null, name: '', date_of_birth: '', age_group: 'U10', skill_level: 'BEGINNER', parent: null });
+  Object.assign(childForm, { id: null, name: '', date_of_birth: '', student_class: null, parent: null });
   childDialogVisible.value = true;
 };
 
@@ -648,8 +920,7 @@ const handleEditChild = (child) => {
     id: child.id,
     name: child.name,
     date_of_birth: child.date_of_birth,
-    age_group: child.age_group,
-    skill_level: child.skill_level,
+    student_class: child.student_class,
     parent: child.parent?.id || child.parent // Handle both populated and ID-only parent
   });
   childDialogVisible.value = true;
@@ -657,7 +928,7 @@ const handleEditChild = (child) => {
 
 const saveChild = async () => {
   try {
-    if (!childForm.name || !childForm.age_group || !childForm.parent) {
+    if (!childForm.name || !childForm.parent) {
       ElMessage.warning('請填寫所有必填項目');
       return;
     }
@@ -665,8 +936,7 @@ const saveChild = async () => {
     const payload = {
       name: childForm.name,
       date_of_birth: childForm.date_of_birth || null,
-      age_group: childForm.age_group,
-      skill_level: childForm.skill_level,
+      student_class: childForm.student_class,
       parent: childForm.parent
     };
 
@@ -717,6 +987,8 @@ onMounted(() => {
   fetchUsers();
   fetchChildren();
   fetchParentList();
+  fetchAcademicYears();
+  fetchClasses();
 });
 </script>
 

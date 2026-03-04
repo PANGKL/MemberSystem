@@ -1,13 +1,31 @@
 # users_app/serializers.py
 from rest_framework import serializers
-from .models import User, Child
+from .models import User, Child, StudentClass, AcademicYear
+
+class AcademicYearSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AcademicYear
+        fields = '__all__'
+
+class StudentClassSerializer(serializers.ModelSerializer):
+    academic_year_name = serializers.CharField(source='academic_year.name', read_only=True)
+
+    class Meta:
+        model = StudentClass
+        fields = '__all__'
 
 class ChildSerializer(serializers.ModelSerializer):
     active_courses = serializers.SerializerMethodField()
+    student_class_name = serializers.CharField(source='student_class.name', read_only=True)
+    academic_year_name = serializers.CharField(source='student_class.academic_year.name', read_only=True)
+    parent_name = serializers.CharField(source='parent.name', read_only=True)
 
     class Meta:
         model = Child
         fields = '__all__'
+        extra_kwargs = {
+            'parent': {'read_only': True},
+        }
 
     def get_active_courses(self, obj):
         # Avoid circular import
@@ -50,4 +68,4 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'name', 'phone_number', 'role', 'points', 'level', 'children']
+        fields = ['id', 'username', 'email', 'name', 'phone_number', 'role', 'points', 'level', 'children', 'date_joined']

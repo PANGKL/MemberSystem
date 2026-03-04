@@ -49,13 +49,11 @@ api.interceptors.response.use(
       }
     }
 
-    const message = error.response?.data?.detail || error.response?.data?.message || '發生錯誤 (Something went wrong)';
-    
     // 如果是登入失敗 (401)，且目前不在登入頁面，才進行導向
     if (error.response?.status === 401) {
       // 如果已經在登入頁面，僅顯示後端回傳的錯誤訊息（如：帳密錯誤）
       if (window.location.pathname.includes('/login')) {
-        ElMessage.error(message);
+        ElMessage.error('帳號或密碼錯誤');
       } else {
         // 如果不是登入頁面，且不是 token 刷新失敗，則導向登入頁面
         userStore.logout();
@@ -63,6 +61,7 @@ api.interceptors.response.use(
       }
     } else {
       // 其他錯誤
+      const message = error.response?.data?.detail || error.response?.data?.message || '發生錯誤 (Something went wrong)';
       ElMessage.error(message);
     }
     

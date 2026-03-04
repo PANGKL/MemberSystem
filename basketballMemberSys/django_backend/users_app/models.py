@@ -37,15 +37,8 @@ class User(AbstractUser):
 
 class Child(models.Model):
     name = models.CharField(max_length=255)
-    date_of_birth = models.DateField(blank=True, null=True) # 新增日期欄位
-    age_group = models.CharField(max_length=50) # e.g., U10, U12, U14
-
-    SKILL_LEVEL_CHOICES = [
-        ('BEGINNER', 'Beginner'),
-        ('INTERMEDIATE', 'Intermediate'),
-        ('ADVANCED', 'Advanced'),
-    ]
-    skill_level = models.CharField(max_length=20, choices=SKILL_LEVEL_CHOICES, default='BEGINNER')
+    date_of_birth = models.DateField(blank=True, null=True)
+    student_class = models.ForeignKey('StudentClass', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
 
     parent = models.ForeignKey(User, on_delete=models.CASCADE, related_name='children')
     
@@ -58,3 +51,35 @@ class Child(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.parent.username})"
+
+class AcademicYear(models.Model):
+    name = models.CharField(max_length=20, unique=True) # e.g., "112", "113"
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Academic Year'
+        verbose_name_plural = 'Academic Years'
+        ordering = ['-name']
+
+    def __str__(self):
+        return self.name
+
+class StudentClass(models.Model):
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name='classes')
+    name = models.CharField(max_length=20)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Class'
+        verbose_name_plural = 'Classes'
+        unique_together = ('academic_year', 'name')
+
+    def __str__(self):
+        return f"{self.academic_year.name} - {self.name}"

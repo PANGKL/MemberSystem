@@ -6,11 +6,33 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.utils import timezone # 導入 timezone
 
-from .models import User, Child
+from .models import User, Child, StudentClass, AcademicYear
 from .serializers import (
-    UserSerializer, ChildSerializer, UserRegisterSerializer, AdminUserSerializer
+    UserSerializer, ChildSerializer, UserRegisterSerializer, AdminUserSerializer, StudentClassSerializer, AcademicYearSerializer
 )
 from .permissions import IsAdminOrOwner
+
+class AcademicYearViewSet(viewsets.ModelViewSet):
+    queryset = AcademicYear.objects.all()
+    serializer_class = AcademicYearSerializer
+    permission_classes = [IsAdminUser] # 只有管理員可以管理學年
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAdminUser])
+    def active(self, request):
+        active_years = AcademicYear.objects.filter(is_active=True)
+        serializer = self.get_serializer(active_years, many=True)
+        return Response(serializer.data)
+
+class StudentClassViewSet(viewsets.ModelViewSet):
+    queryset = StudentClass.objects.all().select_related('academic_year')
+    serializer_class = StudentClassSerializer
+    permission_classes = [IsAdminUser] # 只有管理員可以管理班級
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAdminUser])
+    def students(self, request, pk=None):
+        students = Child.objects.filter(student_class_id=pk).select_related('parent', 'student_class__academic_year')
+        data = ChildSerializer(students, many=True).data
+        return Response(data)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -92,11 +114,21 @@ class ChildViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # 管理員可為任意家長建立學員；一般用戶為自己建立
+        student_class_id = self.request.data.get('student_class')
+        student_class = None
+        if student_class_id:
+            try:
+                student_class = StudentClass.objects.get(id=student_class_id)
+            except StudentClass.DoesNotExist:
+                pass # If class not found, just ignore and let serializer handle or set to None
+
         if self.request.user.is_staff:
             parent_id = self.request.data.get('parent') or self.request.data.get('parent_id')
             if parent_id:
                 from django.shortcuts import get_object_or_404
                 parent = get_object_or_404(User, pk=parent_id)
+                # save() calls the serializer's create/update methods which expect validated_data
+                # passing 'student_class' as a keyword argument to save() will pass it to the model instance if it's a model field
                 serializer.save(parent=parent)
                 return
         serializer.save(parent=self.request.user)

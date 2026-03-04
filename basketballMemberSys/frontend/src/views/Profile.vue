@@ -66,16 +66,12 @@
                 <div class="child-info">
                   <div class="child-header">
                     <span class="child-name">{{ child.name }}</span>
-                    <el-tag type="info" size="small">{{ child.age_group }}</el-tag>
+                    <el-tag type="info" size="small">{{ child.academic_year_name ? `${child.academic_year_name} - ` : '' }}{{ child.student_class_name || '未分班' }}</el-tag>
                   </div>
                   <div class="child-details">
                     <span class="detail-item">
                       <span class="label">出生日期:</span>
                       <span class="value">{{ child.date_of_birth || 'N/A' }}</span>
-                    </span>
-                    <span class="detail-item">
-                      <span class="label">技能等級:</span>
-                      <span class="value">{{ child.skill_level }}</span>
                     </span>
                   </div>
                 </div>
@@ -161,21 +157,14 @@
             style="width: 100%;"
           ></el-date-picker>
         </el-form-item>
-        <el-form-item label="年齡組別" prop="age_group">
-          <el-select v-model="childForm.age_group" placeholder="選擇年齡組別" style="width: 100%;">
-            <el-option label="U6" value="U6"></el-option>
-            <el-option label="U8" value="U8"></el-option>
-            <el-option label="U10" value="U10"></el-option>
-            <el-option label="U12" value="U12"></el-option>
-            <el-option label="U14" value="U14"></el-option>
-            <el-option label="U16" value="U16"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="技能等級" prop="skill_level">
-          <el-select v-model="childForm.skill_level" placeholder="選擇技能等級" style="width: 100%;">
-            <el-option label="初學者" value="BEGINNER"></el-option>
-            <el-option label="中等" value="INTERMEDIATE"></el-option>
-            <el-option label="高級" value="ADVANCED"></el-option>
+        <el-form-item label="班級" prop="student_class">
+           <el-select v-model="childForm.student_class" placeholder="選擇班級" style="width: 100%;" clearable>
+            <el-option 
+              v-for="cls in classes" 
+              :key="cls.id" 
+              :label="`${cls.academic_year_name} - ${cls.name}`" 
+              :value="cls.id" 
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -201,21 +190,14 @@
             style="width: 100%;"
           ></el-date-picker>
         </el-form-item>
-        <el-form-item label="年齡組別" prop="age_group">
-          <el-select v-model="editChildForm.age_group" placeholder="選擇年齡組別" style="width: 100%;">
-            <el-option label="U6" value="U6"></el-option>
-            <el-option label="U8" value="U8"></el-option>
-            <el-option label="U10" value="U10"></el-option>
-            <el-option label="U12" value="U12"></el-option>
-            <el-option label="U14" value="U14"></el-option>
-            <el-option label="U16" value="U16"></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="技能等級" prop="skill_level">
-          <el-select v-model="editChildForm.skill_level" placeholder="選擇技能等級" style="width: 100%;">
-            <el-option label="初學者" value="BEGINNER"></el-option>
-            <el-option label="中等" value="INTERMEDIATE"></el-option>
-            <el-option label="高級" value="ADVANCED"></el-option>
+        <el-form-item label="班級" prop="student_class">
+           <el-select v-model="editChildForm.student_class" placeholder="選擇班級" style="width: 100%;" clearable>
+            <el-option 
+              v-for="cls in classes" 
+              :key="cls.id" 
+              :label="`${cls.academic_year_name} - ${cls.name}`" 
+              :value="cls.id" 
+            />
           </el-select>
         </el-form-item>
       </el-form>
@@ -251,23 +233,30 @@ const currentEditingChildId = ref(null);
 const childForm = reactive({
   name: '',
   date_of_birth: null,
-  age_group: '',
-  skill_level: 'BEGINNER',
+  student_class: null,
 });
 
 const editChildForm = reactive({
   name: '',
   date_of_birth: null,
-  age_group: '',
-  skill_level: 'BEGINNER',
+  student_class: null,
 });
 
 const childRules = reactive({
   name: [{ required: true, message: '請輸入姓名', trigger: 'blur' }],
   date_of_birth: [{ required: true, message: '請選擇出生日期', trigger: 'change' }],
-  age_group: [{ required: true, message: '請選擇年齡組別', trigger: 'change' }],
-  skill_level: [{ required: true, message: '請選擇技能等級', trigger: 'change' }],
 });
+
+const classes = ref([]);
+
+const fetchClasses = async () => {
+  try {
+    const data = await api.get('/users/classes/');
+    classes.value = data;
+  } catch (error) {
+    console.error('Fetch classes failed:', error);
+  }
+};
 
 // 頭像相關
 const showAvatarDialog = ref(false);
@@ -414,8 +403,7 @@ const handleEditChild = (child) => {
   Object.assign(editChildForm, {
     name: child.name,
     date_of_birth: child.date_of_birth,
-    age_group: child.age_group,
-    skill_level: child.skill_level,
+    student_class: child.student_class,
   });
   showEditChildDialog.value = true;
 };
@@ -437,7 +425,10 @@ const updateChild = async () => {
   });
 };
 
-onMounted(fetchProfile);
+onMounted(() => {
+  fetchProfile();
+  fetchClasses();
+});
 </script>
 
 <style scoped>

@@ -21,22 +21,20 @@ export const useUserStore = defineStore('user', {
     async login(username, password) {
       this.loading = true;
       try {
-        // Django Simple JWT 的登入端點是 /api/token/
         const response = await api.post('/token/', { username, password });
         this.accessToken = response.access;
         this.refreshToken = response.refresh;
-        
-        // 獲取使用者資料 (Django Simple JWT 登入不會直接返回 user 資料)
-        const userData = await api.get('/users/profile/'); // 假設有 /api/users/profile/ 端點
-        this.user = userData;
-
         localStorage.setItem('accessToken', this.accessToken);
         localStorage.setItem('refreshToken', this.refreshToken);
+        
+        // Fetch user profile immediately after token set
+        const userResponse = await api.get('/users/profile/');
+        this.user = userResponse;
         localStorage.setItem('user', JSON.stringify(this.user));
+
         return true;
       } catch (error) {
         console.error('Login failed:', error);
-        // 錯誤訊息會由 api/index.js 的攔截器處理
         return false;
       } finally {
         this.loading = false;
