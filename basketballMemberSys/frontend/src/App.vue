@@ -5,7 +5,17 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue';
 import { ElConfigProvider } from 'element-plus';
+import { useUserStore } from './stores/userStore';
+
+const userStore = useUserStore();
+
+onMounted(async () => {
+  if (userStore.isAuthenticated) {
+    await userStore.syncUserProfile();
+  }
+});
 </script>
 
 <style>

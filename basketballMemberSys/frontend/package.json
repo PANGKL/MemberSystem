@@ -22,11 +22,13 @@
   },
   "devDependencies": {
     "@storybook/vue3-vite": "^10.2.15",
+    "@tailwindcss/vite": "^4.2.1",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/test-utils": "^2.4.6",
     "jsdom": "^28.1.0",
     "rollup-plugin-visualizer": "^7.0.1",
     "storybook": "^10.2.15",
+    "tailwindcss": "^4.2.1",
     "vite": "^8.0.0-beta.13",
     "vitest": "^4.0.18"
   },

@@ -4,16 +4,23 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from django.utils import timezone
+from django.db import transaction
+from django.db.models import F
 
 from .models import Activity, Registration, Reward, PointTransaction
 from .serializers import (
     ActivitySerializer, RegistrationSerializer, RewardSerializer, PointTransactionSerializer,
-    RegistrationCreateSerializer
+    RegistrationCreateSerializer, RegistrationUpdateSerializer
 )
 from users_app.models import User, Child # 導入 User 和 Child 模型
 
 class ActivityViewSet(viewsets.ModelViewSet):
-    queryset = Activity.objects.all().order_by('date_time')
+    # Optimize query with prefetch_related for N+1 problem
+    queryset = Activity.objects.all().prefetch_related(
+        'registrations', 
+        'registrations__user', 
+        'registrations__child'
+    ).order_by('date_time')
     serializer_class = ActivitySerializer
 
     def get_permissions(self):
@@ -25,7 +32,6 @@ class ActivityViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def register(self, request, pk=None):
-        activity = self.get_object()
         user = request.user
         child_id = request.data.get('child_id')
 
@@ -37,32 +43,44 @@ class ActivityViewSet(viewsets.ModelViewSet):
         except Child.DoesNotExist:
             return Response({'detail': '學員不存在或不屬於當前用戶 (Child not found or does not belong to current user)'}, status=status.HTTP_404_NOT_FOUND)
 
-        if activity.current_participants >= activity.max_participants:
-            return Response({'detail': '活動已滿額 (Activity is full)'}, status=status.HTTP_400_BAD_REQUEST)
+        # Use atomic transaction and select_for_update to prevent race conditions
+        with transaction.atomic():
+            # Lock the activity row
+            try:
+                activity = Activity.objects.select_for_update().get(pk=pk)
+            except Activity.DoesNotExist:
+                return Response({'detail': '活動不存在'}, status=status.HTTP_404_NOT_FOUND)
 
-        if Registration.objects.filter(child=child, activity=activity).exists():
-            return Response({'detail': '該學員已報名此活動 (Child already registered for this activity)'}, status=status.HTTP_400_BAD_REQUEST)
+            if activity.current_participants >= activity.max_participants:
+                return Response({'detail': '活動已滿額 (Activity is full)'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 檢查活動價格，決定初始狀態
-        if activity.price > 0:
-            registration_status = 'PENDING_PAYMENT'
-        else:
-            registration_status = 'AWAITING_APPROVAL'
+            if Registration.objects.filter(child=child, activity=activity).exists():
+                return Response({'detail': '該學員已報名此活動 (Child already registered for this activity)'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 創建報名記錄
-        registration = Registration.objects.create(
-            user=user,
-            child=child,
-            activity=activity,
-            status=registration_status,
-            medical_statement=request.data.get('medical_statement'),
-            emergency_contact=request.data.get('emergency_contact'),
-            emergency_phone=request.data.get('emergency_phone'),
-        )
+            # 檢查活動價格，決定初始狀態
+            if activity.price > 0:
+                registration_status = 'PENDING_PAYMENT'
+            else:
+                registration_status = 'AWAITING_APPROVAL'
 
-        # 更新活動人數
-        activity.current_participants += 1
-        activity.save()
+            # 創建報名記錄
+            registration = Registration.objects.create(
+                user=user,
+                child=child,
+                activity=activity,
+                status=registration_status,
+                medical_statement=request.data.get('medical_statement'),
+                emergency_contact=request.data.get('emergency_contact'),
+                emergency_phone=request.data.get('emergency_phone'),
+            )
+
+            # Atomically increment participant count
+            # Although select_for_update already locks the row, using F() is still good practice for clarity
+            activity.current_participants = F('current_participants') + 1
+            activity.save()
+            
+            # Refresh from db to get the updated value (optional, but good for response)
+            activity.refresh_from_db()
 
         serializer = RegistrationSerializer(registration)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -73,10 +91,11 @@ class RegistrationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return Registration.objects.all()
-        return Registration.objects.filter(user=user)
+        # Optimize query with select_related for N+1 problem
+        queryset = Registration.objects.select_related('user', 'child', 'activity')
+        if self.request.user.is_staff:
+            return queryset
+        return queryset.filter(user=self.request.user)
 
     def get_serializer_class(self):
         if self.action in ['update', 'partial_update']:

@@ -11,13 +11,13 @@ class Activity(models.Model):
         ('COMPETITION', 'Competition'),
         ('SPECIAL_EVENT', 'Special Event'),
     ]
-    type = models.CharField(max_length=20, choices=ACTIVITY_TYPE_CHOICES)
+    type = models.CharField(max_length=20, choices=ACTIVITY_TYPE_CHOICES, db_index=True)
 
     description = models.TextField(blank=True, null=True)
     location = models.CharField(max_length=255, blank=True, null=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
-    date = models.DateField(null=True, blank=True)
+    date = models.DateField(null=True, blank=True, db_index=True)
     time = models.TimeField(null=True, blank=True)
     date_time = models.DateTimeField(null=True, blank=True)
     max_participants = models.IntegerField(null=True, blank=True)

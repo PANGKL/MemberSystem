@@ -1,95 +1,116 @@
 <template>
   <div class="class-mgmt">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="va-h6 m-0">班別管理</h2>
-      <VaButton icon="add" @click="openCreateDialog">新增班別</VaButton>
+      <h2 class="text-xl font-bold m-0">班別管理</h2>
+      <el-button type="primary" @click="openCreateDialog">新增班別</el-button>
     </div>
 
-    <VaCard>
-      <VaCardContent>
-        <VaDataTable
-          :items="classes"
-          :columns="columns"
-          :loading="loading"
-          no-data-html="暫無班別資料"
-        >
-          <template #cell(actions)="{ row }">
+    <el-card shadow="never">
+      <el-table
+        v-loading="loading"
+        :data="classes"
+        style="width: 100%"
+        empty-text="暫無班別資料"
+      >
+        <!-- <el-table-column prop="id" label="ID" width="60" sortable /> -->
+        <el-table-column prop="academic_year_name" label="學年度" sortable />
+        <el-table-column prop="name" label="班別名稱" sortable />
+        
+        <el-table-column label="操作" width="220">
+          <template #default="{ row }">
             <div class="flex gap-2">
-              <VaButton preset="primary" size="small" icon="edit" @click="handleEdit(row.rowData)" />
-              <VaButton preset="secondary" size="small" icon="group" @click="openStudentsList(row.rowData)">
+              <el-button type="primary" size="small" @click="handleEdit(row)">編輯</el-button>
+              <el-button type="success" size="small" @click="openStudentsList(row)">
                 查看學生
-              </VaButton>
+              </el-button>
             </div>
           </template>
-        </VaDataTable>
-      </VaCardContent>
-    </VaCard>
+        </el-table-column>
+      </el-table>
+    </el-card>
 
     <!-- 建立/編輯班別對話框 -->
-    <VaModal
+    <el-dialog
       v-model="dialogVisible"
       :title="isEdit ? '編輯班別' : '建立班別'"
-      hide-default-actions
+      width="400px"
     >
-      <VaForm ref="formRef" @submit.prevent="saveClass" class="flex flex-col gap-4 min-w-[300px]">
-        <VaSelect
-          v-model="form.academic_year"
-          label="學年度"
-          :options="academicYearOptions"
-          :disabled="isEdit" 
-          value-by="id"
-          text-by="name"
-          placeholder="請選擇學年度"
-          :rules="[(v) => !!v || '請選擇學年度']"
-        />
-        <div v-if="academicYearOptions.length === 0 && !loading" class="text-xs text-red-500">
-          目前無啟用的學年度，請先至「學年管理」新增或啟用。
-        </div>
+      <el-form ref="formRef" :model="form" label-width="80px" class="flex flex-col gap-4">
+        <el-form-item label="學年度" required>
+          <el-select
+            v-model="form.academic_year"
+            placeholder="請選擇學年度"
+            :disabled="isEdit"
+            class="w-full"
+          >
+            <el-option
+              v-for="item in academicYearOptions"
+              :key="item.id"
+              :label="item.name"
+              :value="item.id"
+            />
+          </el-select>
+          <div v-if="academicYearOptions.length === 0 && !loading" class="text-xs text-red-500 mt-1">
+            目前無啟用的學年度，請先至「學年管理」新增或啟用。
+          </div>
+        </el-form-item>
 
-        <VaInput
-          v-model="form.name"
-          label="班別名稱"
-          placeholder="例如：A班"
-          :rules="[(v) => !!v || '請輸入班別名稱', (v) => v.length <= 20 || '限制 20 字']"
-          :max-length="20"
-        />
-
-        <div class="flex justify-end gap-2 mt-4">
-          <VaButton preset="secondary" @click="dialogVisible = false">取消</VaButton>
-          <VaButton type="submit" :loading="saving" :disabled="academicYearOptions.length === 0 && !isEdit">
+        <el-form-item label="班別名稱" required>
+          <el-input
+            v-model="form.name"
+            placeholder="例如：A班"
+            maxlength="20"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button 
+            type="primary" 
+            :loading="saving" 
+            :disabled="academicYearOptions.length === 0 && !isEdit"
+            @click="saveClass"
+          >
             {{ isEdit ? '儲存' : '建立' }}
-          </VaButton>
-        </div>
-      </VaForm>
-    </VaModal>
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
 
     <!-- 學生列表對話框 -->
-    <VaModal
+    <el-dialog
       v-model="studentsDialogVisible"
       :title="`學生列表 - ${selectedClass?.academic_year_name} ${selectedClass?.name}`"
-      size="large"
-      hide-default-actions
+      width="600px"
     >
-      <VaDataTable
-        :items="classStudents"
-        :columns="studentColumns"
-        :loading="studentsLoading"
-        no-data-html="本班尚無學生"
-        class="max-h-[60vh]"
-      />
-      <div class="flex justify-end mt-4">
-        <VaButton preset="secondary" @click="studentsDialogVisible = false">關閉</VaButton>
-      </div>
-    </VaModal>
+      <el-table
+        v-loading="studentsLoading"
+        :data="classStudents"
+        style="width: 100%"
+        max-height="60vh"
+        empty-text="本班尚無學生"
+      >
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="name" label="姓名" />
+        <el-table-column prop="date_of_birth" label="出生日期" />
+        <el-table-column prop="parent_name" label="家長" />
+      </el-table>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="studentsDialogVisible = false">關閉</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue';
 import api from '../../api';
-import { useNotifications } from '../../utils/notifications';
-
-const { notifySuccess, notifyError, notifyWarning } = useNotifications();
+import { ElMessage } from 'element-plus';
+import { Plus, Edit, User } from '@element-plus/icons-vue';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -110,20 +131,6 @@ const form = reactive({
   name: ''
 });
 
-const columns = [
-  { key: 'id', label: 'ID', sortable: true, width: '60px' },
-  { key: 'academic_year_name', label: '學年度', sortable: true },
-  { key: 'name', label: '班別名稱', sortable: true },
-  { key: 'actions', label: '操作', width: '200px' }
-];
-
-const studentColumns = [
-  { key: 'id', label: 'ID', width: '60px' },
-  { key: 'name', label: '姓名' },
-  { key: 'date_of_birth', label: '出生日期' },
-  { key: 'parent_name', label: '家長' }
-];
-
 const academicYearOptions = computed(() => {
   return academicYears.value.map(y => ({ id: y.id, name: y.name }));
 });
@@ -134,7 +141,7 @@ const fetchClasses = async () => {
     const data = await api.get('/users/classes/');
     classes.value = data;
   } catch (error) {
-    notifyError('無法載入班別資料');
+    ElMessage.error('無法載入班別資料');
   } finally {
     loading.value = false;
   }
@@ -145,13 +152,13 @@ const fetchActiveAcademicYears = async () => {
     const data = await api.get('/users/academic-years/active/');
     academicYears.value = data;
   } catch (error) {
-    notifyError('無法載入學年資料');
+    ElMessage.error('無法載入學年資料');
   }
 };
 
 const openCreateDialog = () => {
   if (academicYears.value.length === 0) {
-    notifyWarning('目前無啟用的學年度，請先至「學年管理」新增或啟用。');
+    ElMessage.warning('目前無啟用的學年度，請先至「學年管理」新增或啟用。');
   }
   isEdit.value = false;
   Object.assign(form, { 
@@ -164,10 +171,6 @@ const openCreateDialog = () => {
 
 const handleEdit = (row) => {
   isEdit.value = true;
-  // Backend returns academic_year object or ID depending on serializer depth. 
-  // Assuming backend returns flat ID or object with ID. 
-  // Based on serializer, StudentClassSerializer has academic_year_name (read_only) and academic_year (ID).
-  // We need to ensure form.academic_year gets the ID.
   Object.assign(form, {
     id: row.id,
     academic_year: row.academic_year, 
@@ -177,22 +180,25 @@ const handleEdit = (row) => {
 };
 
 const saveClass = async () => {
-  if (!form.academic_year || !form.name) return;
+  if (!form.academic_year || !form.name) {
+    ElMessage.warning('請填寫完整資料');
+    return;
+  }
 
   saving.value = true;
   try {
     if (isEdit.value) {
       await api.put(`/users/classes/${form.id}/`, form);
-      notifySuccess('班別更新成功');
+      ElMessage.success('班別更新成功');
     } else {
       await api.post('/users/classes/', form);
-      notifySuccess('班別建立成功');
+      ElMessage.success('班別建立成功');
     }
     dialogVisible.value = false;
     fetchClasses();
   } catch (error) {
     const errorMsg = error.response?.data?.name ? '班別名稱重複或無效' : '操作失敗';
-    notifyError(errorMsg);
+    ElMessage.error(errorMsg);
   } finally {
     saving.value = false;
   }
@@ -206,7 +212,7 @@ const openStudentsList = async (row) => {
     const data = await api.get(`/users/classes/${row.id}/students/`);
     classStudents.value = data;
   } catch (error) {
-    notifyError('載入學生列表失敗');
+    ElMessage.error('載入學生列表失敗');
   } finally {
     studentsLoading.value = false;
   }

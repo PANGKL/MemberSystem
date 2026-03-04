@@ -1,66 +1,56 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useUserStore } from '../stores/userStore';
-import Home from '../views/Home.vue';
-import Auth from '../views/Auth.vue';
-import Profile from '../views/Profile.vue';
-import Activities from '../views/Activities.vue';
-import AdminLayout from '../layouts/AdminLayout.vue';
-import AcademicYearMgmt from '../views/admin/AcademicYearMgmt.vue';
-import ClassMgmt from '../views/admin/ClassMgmt.vue';
-import UserMgmt from '../views/admin/UserMgmt.vue';
-import AdminActivities from '../views/AdminActivities.vue'; // Temporarily keep until migrated
-import MainLayout from '../layouts/MainLayout.vue';
 
 const routes = [
   {
     path: '/',
-    component: MainLayout,
+    component: () => import('../layouts/MainLayout.vue'),
     meta: { requiresAuth: true },
     children: [
       {
         path: '',
         name: 'Home',
-        component: Home
+        component: () => import('../views/Home.vue')
       },
       {
         path: 'profile',
         name: 'Profile',
-        component: Profile
+        component: () => import('../views/Profile.vue')
       },
       {
         path: 'activities',
         name: 'Activities',
-        component: Activities
+        component: () => import('../views/Activities.vue')
       }
     ]
   },
   {
     path: '/admin',
-    component: AdminLayout,
+    component: () => import('../layouts/AdminLayout.vue'),
     meta: { requiresAdmin: true, breadcrumb: '後台首頁' },
     children: [
       {
         path: 'users',
         name: 'UserMgmt',
-        component: UserMgmt,
+        component: () => import('../views/admin/UserMgmt.vue'),
         meta: { breadcrumb: '帳號與學員管理' }
       },
       {
         path: 'academic-years',
         name: 'AcademicYearMgmt',
-        component: AcademicYearMgmt,
+        component: () => import('../views/admin/AcademicYearMgmt.vue'),
         meta: { breadcrumb: '學年管理' }
       },
       {
         path: 'classes',
         name: 'ClassMgmt',
-        component: ClassMgmt,
+        component: () => import('../views/admin/ClassMgmt.vue'),
         meta: { breadcrumb: '班別管理' }
       },
       {
         path: 'activities',
         name: 'AdminActivities',
-        component: AdminActivities,
+        component: () => import('../views/AdminActivities.vue'),
         meta: { breadcrumb: '活動管理' }
       }
     ]
@@ -68,7 +58,7 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: Auth,
+    component: () => import('../views/Auth.vue'),
     meta: { guestOnly: true }
   }
 ];
