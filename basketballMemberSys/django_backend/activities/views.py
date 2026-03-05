@@ -51,7 +51,7 @@ class ActivityViewSet(viewsets.ModelViewSet):
             except Activity.DoesNotExist:
                 return Response({'detail': '活動不存在'}, status=status.HTTP_404_NOT_FOUND)
 
-            if activity.current_participants >= activity.max_participants:
+            if activity.max_participants and activity.max_participants > 0 and activity.current_participants >= activity.max_participants:
                 return Response({'detail': '活動已滿額 (Activity is full)'}, status=status.HTTP_400_BAD_REQUEST)
 
             if Registration.objects.filter(child=child, activity=activity).exists():

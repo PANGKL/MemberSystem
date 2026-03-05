@@ -20,20 +20,9 @@
           <span class="nav-link" @click="router.push('/')">返回主頁</span>
         </VaNavbarItem>
         <VaNavbarItem>
-          <el-dropdown trigger="click">
-            <div class="user-trigger">
-              <UserCircle class="nav-icon" />
-              <span class="username">{{ userStore.user?.name || userStore.user?.username || '管理員' }}</span>
-              <ArrowDown class="icon-small" />
-            </div>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="userStore.logout()">
-                  登出
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+          <div class="user-trigger">
+            <span class="username">{{ userStore.user?.name || userStore.user?.username || '管理員' }}</span>
+          </div>
         </VaNavbarItem>
       </template>
     </VaNavbar>
@@ -49,9 +38,9 @@
       >
         <VaSidebarItem
           v-for="item in menuItems"
-          :key="item.path"
-          :active="route.path === item.path"
-          @click="handleMenuClick(item.path)"
+          :key="item.title"
+          :active="typeof item.path === 'string' ? route.path === item.path : false"
+          @click="handleMenuClick(item)"
           hover-color="#ffffffff"
           active-color="#646a75ff"
         >
@@ -92,7 +81,8 @@ import {
   Calendar, 
   Activity,
   School,
-  Menu
+  Menu,
+  LogOut
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -105,6 +95,7 @@ const menuItems = [
   { title: '學年管理', path: '/admin/academic-years', icon: Calendar },
   { title: '班別管理', path: '/admin/classes', icon: School },
   { title: '活動管理', path: '/admin/activities', icon: Activity },
+  { title: '登出', action: () => userStore.logout(), icon: LogOut }
 ];
 
 const currentRouteName = computed(() => {
@@ -112,7 +103,6 @@ const currentRouteName = computed(() => {
   return item ? item.title : '管理介面';
 });
 
-// Responsive Sidebar
 const checkScreenSize = () => {
   if (window.innerWidth < 1024) {
     isSidebarVisible.value = false;
@@ -121,8 +111,12 @@ const checkScreenSize = () => {
   }
 };
 
-const handleMenuClick = (path) => {
-  router.push(path);
+const handleMenuClick = (item) => {
+  if (item.action) {
+    item.action();
+  } else if (item.path) {
+    router.push(item.path);
+  }
   if (window.innerWidth < 1024) {
     isSidebarVisible.value = false;
   }
@@ -242,7 +236,7 @@ onUnmounted(() => {
 
 .logo-text {
   font-weight: bold;
-  font-size: 1.125rem;
+  font-size: large;
   display: none;
 }
 
@@ -258,7 +252,7 @@ onUnmounted(() => {
 
 .nav-link {
   font-weight: bold;
-  font-size: 1.125rem;
+  font-size: large;
   cursor: pointer;
   margin-right: 1rem;
 }
@@ -272,6 +266,7 @@ onUnmounted(() => {
 
 .username {
   display: none;
+  font-size: large;
 }
 
 .icon-small {

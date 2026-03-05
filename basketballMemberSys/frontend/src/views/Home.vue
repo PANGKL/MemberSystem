@@ -23,7 +23,7 @@
             </div>
             <div class="info-item">
               <Users class="w-4 h-4" />
-              <span>人數限制: {{ activity.current_participants }}/{{ activity.max_participants }}</span>
+              <span>人數限制: {{ activity.current_participants }}/{{ getMaxParticipantsLabel(activity) }}</span>
             </div>
             <p class="activity-desc">{{ activity.description }}</p>
           </div>
@@ -31,15 +31,33 @@
           <div class="activity-footer">
             <el-button 
               type="primary" 
-              :disabled="activity.current_participants >= activity.max_participants"
+              :disabled="isActivityFull(activity)"
               @click="handleRegister(activity)"
               block
             >
-              {{ activity.current_participants >= activity.max_participants ? '已滿額 (Full)' : '立即報名 (Register)' }}
+              {{ isActivityFull(activity) ? '已滿額 (Full)' : '立即報名 (Register)' }}
             </el-button>
           </div>
         </el-card>
       </div>
+      
+      <!-- 選擇學員報名對話框 -->
+      <el-dialog v-model="showRegisterActivityDialog" title="選擇學員報名" width="420px">
+        <div v-if="userStore.user?.children?.length > 0">
+          <el-select v-model="selectedChildId" placeholder="選擇學員" style="width: 100%">
+            <el-option 
+              v-for="c in userStore.user.children" 
+              :key="c.id" 
+              :label="`${c.name}${c.academic_year_name ? ' - ' + c.academic_year_name : ''}${c.student_class_name ? ' ' + c.student_class_name : ''}`" 
+              :value="c.id" 
+            />
+          </el-select>
+        </div>
+        <template #footer>
+          <el-button @click="showRegisterActivityDialog = false">取消</el-button>
+          <el-button type="primary" @click="confirmRegisterWithChild" :disabled="!selectedChildId">確認</el-button>
+        </template>
+      </el-dialog>
   </div>
 </template>
 
@@ -54,6 +72,26 @@ import { Calendar, Users, RefreshCw } from 'lucide-vue-next';
 const router = useRouter();
 const userStore = useUserStore();
 const activities = ref([]);
+const showRegisterActivityDialog = ref(false);
+const selectedActivity = ref(null);
+const selectedChildId = ref(null);
+
+const hasCapacityLimit = (activity) => {
+  const max = Number(activity?.max_participants)
+  return !Number.isNaN(max) && max > 0
+}
+
+const isActivityFull = (activity) => {
+  if (!hasCapacityLimit(activity)) return false
+  const current = Number(activity?.current_participants)
+  const max = Number(activity?.max_participants)
+  if (Number.isNaN(current) || Number.isNaN(max)) return false
+  return current >= max
+}
+
+const getMaxParticipantsLabel = (activity) => {
+  return hasCapacityLimit(activity) ? activity.max_participants : '無限制'
+}
 
 const fetchActivities = async () => {
   try {
@@ -89,9 +127,20 @@ const handleRegister = async (activity) => {
       }
     );
 
-    await api.post(`/activities/${activity.id}/register/`);
-    ElMessage.success('報名成功！ (Registration successful!)');
-    fetchActivities(); // Refresh activities to update participant count
+    const children = userStore.user?.children || [];
+    if (children.length === 0) {
+      ElMessage.warning('請先到個人檔案新增學員 (Please add a child in Profile)');
+      return;
+    }
+    if (children.length === 1) {
+      await api.post(`/activities/${activity.id}/register/`, { child_id: children[0].id });
+      ElMessage.success('報名成功！ (Registration successful!)');
+      fetchActivities(); // Refresh activities to update participant count
+    } else {
+      selectedActivity.value = activity;
+      selectedChildId.value = null;
+      showRegisterActivityDialog.value = true;
+    }
   } catch (error) {
     if (error === 'cancel') {
       ElMessage.info('已取消報名 (Registration cancelled)');
@@ -102,6 +151,19 @@ const handleRegister = async (activity) => {
   }
 };
 
+const confirmRegisterWithChild = async () => {
+  if (!selectedActivity.value || !selectedChildId.value) return;
+  try {
+    await api.post(`/activities/${selectedActivity.value.id}/register/`, { child_id: selectedChildId.value });
+    ElMessage.success('報名成功！ (Registration successful!)');
+    showRegisterActivityDialog.value = false;
+    selectedActivity.value = null;
+    selectedChildId.value = null;
+    fetchActivities();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || '報名失敗，請稍後再試');
+  }
+};
 onMounted(() => {
   fetchActivities();
 });

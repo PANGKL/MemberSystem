@@ -251,7 +251,7 @@ const classes = ref([]);
 
 const fetchClasses = async () => {
   try {
-    const data = await api.get('/users/classes/');
+    const data = await api.get('/users/classes/available/');
     classes.value = data;
   } catch (error) {
     console.error('Fetch classes failed:', error);

@@ -6,19 +6,33 @@
         <span class="brand">球會會員系統</span>
       </div>
       <div class="header-right">
-        <el-button type="text" @click="router.push('/activities')">活動</el-button>
+        <el-button type="text" @click="router.push('/activities')"
+          >活動</el-button
+        >
+        <el-button type="text" @click="router.push('/profile')"
+          >個人檔案</el-button
+        >
         <el-dropdown>
-          <span class="el-dropdown-link">
-            <UserCircle class="mr-1" />
-            {{ userStore.user?.name || userStore.user?.username || '帳戶' }}
-            <ArrowDown class="dropdown-icon" />
-          </span>
+          <div class="user-trigger">
+            <span class="el-dropdown-link">
+              <UserCircle class="mr-1" />
+              {{ userStore.user?.name || userStore.user?.username || "帳戶" }}
+              <ArrowDown class="dropdown-icon" />
+            </span>
+          </div>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item v-if="userStore.isAdmin" @click="router.push('/admin/users')">帳號與學員管理</el-dropdown-item>
-              <el-dropdown-item v-if="userStore.isAdmin" @click="router.push('/admin/activities')">活動管理</el-dropdown-item>
-              <el-dropdown-item @click="router.push('/profile')">個人檔案</el-dropdown-item>
-              <el-dropdown-item divided @click="userStore.logout()">登出</el-dropdown-item>
+              <el-dropdown-item
+                v-if="userStore.isAdmin"
+                @click="router.push('/admin/users')"
+                >帳號與學員管理</el-dropdown-item
+              >
+              <el-dropdown-item @click="router.push('/profile')"
+                >個人檔案</el-dropdown-item
+              >
+              <el-dropdown-item divided @click="userStore.logout()"
+                >登出</el-dropdown-item
+              >
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -32,10 +46,10 @@
   </div>
 </template>
 <script setup>
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useUserStore } from '../stores/userStore';
-import { Dribbble, CircleStar, ArrowDown, UserCircle } from 'lucide-vue-next';
+import { onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useUserStore } from "../stores/userStore";
+import { Dribbble, CircleStar, ArrowDown, UserCircle } from "lucide-vue-next";
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -61,6 +75,7 @@ onMounted(refreshProfile);
 .header-left {
   display: flex;
   align-items: center;
+  font-size: large;
   gap: 8px;
   cursor: pointer;
 }
@@ -70,13 +85,28 @@ onMounted(refreshProfile);
   color: #409eff;
 }
 .brand {
-  font-weight: 700;
+  font-weight: bold;
   color: #1f2937;
 }
 .dropdown-icon {
   width: 16px;
   height: 16px;
   margin-left: 4px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.header-right .el-button {
+  font-size: large;
+    font-weight: bold;
+}
+.el-dropdown-link {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  font-size: large;
 }
 .layout-body {
   padding: 16px;

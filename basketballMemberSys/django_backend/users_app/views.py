@@ -28,6 +28,13 @@ class StudentClassViewSet(viewsets.ModelViewSet):
     serializer_class = StudentClassSerializer
     permission_classes = [IsAdminUser] # 只有管理員可以管理班級
 
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def available(self, request):
+        # 提供給家長選擇的班別列表：僅列出啟用學年的班別
+        classes = StudentClass.objects.filter(academic_year__is_active=True).select_related('academic_year')
+        data = StudentClassSerializer(classes, many=True).data
+        return Response(data)
+
     @action(detail=True, methods=['get'], permission_classes=[IsAdminUser])
     def students(self, request, pk=None):
         students = Child.objects.filter(student_class_id=pk).select_related('parent', 'student_class__academic_year')

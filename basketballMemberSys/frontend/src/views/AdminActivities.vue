@@ -54,10 +54,6 @@
             </el-col>
           </el-row>
           <el-row :gutter="20" class="mt-4">
-             <el-col :span="12" :xs="24">
-               <span class="demonstration text-gray-500 mr-2">參與人數:</span>
-               <el-slider v-model="filterParticipantsRange" range :max="50" style="width: 80%; display: inline-block; vertical-align: middle;" />
-             </el-col>
              <el-col :span="12" :xs="24" class="text-right">
                 <el-button @click="clearFilters">清除篩選</el-button>
                 <el-button type="primary" @click="exportActivityData">匯出 CSV</el-button>
@@ -144,7 +140,10 @@
             <el-table-column label="人數" width="100">
               <template #default="{ row }">
                 <el-progress :percentage="getParticipationPercentage(row)" />
-                <small style="color: #999;">{{ row.currentParticipants }} / {{ row.maxParticipants }}</small>
+                <small style="color: #999;">
+                  {{ row.currentParticipants }} /
+                  {{ Number(row.maxParticipants) > 0 ? row.maxParticipants : '無限制' }}
+                </small>
               </template>
             </el-table-column>
 
@@ -281,11 +280,15 @@
         </el-form-item>
 
         <el-form-item label="最大人數" prop="maxParticipants">
-          <el-input-number 
-            v-model="formData.maxParticipants" 
-            :min="1"
-            placeholder="輸入最大參與人數">
-          </el-input-number>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <el-input-number 
+              v-model="formData.maxParticipants" 
+              :min="1"
+              :disabled="unlimited"
+              placeholder="輸入最大參與人數">
+            </el-input-number>
+            <el-checkbox v-model="unlimited">無限制</el-checkbox>
+          </div>
         </el-form-item>
 
         <el-form-item label="詳細資料" prop="description">
@@ -338,6 +341,7 @@ const activities = ref([])
 const dialogVisible = ref(false)
 const isEditing = ref(false)
 const isSubmitting = ref(false)
+const unlimited = ref(false)
 
 const showReceiptDialog = ref(false)
 const selectedRegistration = ref(null)
@@ -366,7 +370,14 @@ const rules = {
   date: [{ required: true, message: '請選擇日期', trigger: 'change' }],
   time: [{ required: true, message: '請選擇時間', trigger: 'change' }],
   location: [{ required: true, message: '請輸入地點', trigger: 'blur' }],
-  maxParticipants: [{ required: true, message: '請輸入最大人數', trigger: 'blur' }]
+  maxParticipants: [
+    { validator: (_r, v, cb) => {
+        if (unlimited.value) return cb()
+        if (v == null || v <= 0) return cb(new Error('請輸入最大人數'))
+        cb()
+      }, trigger: 'blur' 
+    }
+  ]
 }
 
 const filteredActivities = computed(() => {
@@ -387,7 +398,8 @@ const filteredActivities = computed(() => {
     if (filterStatus.value) {
       const now = new Date()
       const activityDate = new Date(activity.dateTime || `${activity.date}T${activity.time}`)
-      const isFull = activity.currentParticipants >= activity.maxParticipants
+      const hasCap = typeof activity.maxParticipants === 'number' && activity.maxParticipants > 0
+      const isFull = hasCap && activity.currentParticipants >= activity.maxParticipants
 
       if (filterStatus.value === 'registering') {
         matchStatus = activityDate > now && !isFull
@@ -500,9 +512,10 @@ const getStatusTagType = (status) => {
 };
 
 const getParticipationRatio = (activity) => {
-  const max = Number(activity?.maxParticipants)
+  const maxVal = activity?.maxParticipants
+  const max = (maxVal == null || maxVal <= 0) ? null : Number(maxVal)
   const current = Number(activity?.currentParticipants)
-  if (!max || Number.isNaN(max) || max <= 0) {
+  if (max == null || Number.isNaN(max)) {
     return 0
   }
   if (Number.isNaN(current) || current < 0) {
@@ -549,7 +562,7 @@ const loadActivities = async () => {
       ...activity,
       // 確保前端使用的欄位名稱正確映射
       currentParticipants: activity.currentParticipants || activity.current_participants || 0,
-      maxParticipants: activity.maxParticipants || activity.max_participants || 0,
+      maxParticipants: (activity.maxParticipants ?? activity.max_participants ?? null),
       price: Number(activity.price) || 0,
       // 如果後端返回的是 date 和 time，確保它們被正確讀取
       date: activity.date,
@@ -582,6 +595,7 @@ const showEditDialog = (activity) => {
     maxParticipants: activity.maxParticipants,
     description: activity.description || ''
   }
+  unlimited.value = !(Number(activity.maxParticipants) > 0)
   dialogVisible.value = true
 }
 
@@ -596,6 +610,7 @@ const resetForm = () => {
     maxParticipants: 20,
     description: ''
   }
+  unlimited.value = false
 }
 
 const submitForm = async () => {
@@ -607,7 +622,8 @@ const submitForm = async () => {
       time: formData.value.time,
       location: formData.value.location,
       price: formData.value.price,
-      maxParticipants: formData.value.maxParticipants,
+      // 後端此欄位不允許為 null；以 0 代表「無限制」
+      maxParticipants: unlimited.value ? 0 : formData.value.maxParticipants,
       description: formData.value.description
     }
 

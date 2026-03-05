@@ -199,4 +199,7 @@ onMounted(() => {
 .academic-year-mgmt {
   padding: 1rem;
 }
+
+
+
 </style>
