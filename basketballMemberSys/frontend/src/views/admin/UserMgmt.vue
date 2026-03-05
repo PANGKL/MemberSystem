@@ -7,18 +7,18 @@
 
     <!-- 篩選器 -->
     <el-card class="mb-4" shadow="never">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <el-input
+      <div class="flex flex-wrap gap-4 items-center">
+        <el-input 
           v-model="filters.query"
           placeholder="搜尋姓名、Email、用戶名"
-          prefix-icon="Search"
           clearable
+          style="width: 200px"
         />
         <el-select
           v-model="filters.role"
-          placeholder="角色篩選"
+          placeholder="角色"
           clearable
-          class="w-full"
+          style="width: 150px"
         >
           <el-option
             v-for="item in roleOptions"
@@ -28,27 +28,16 @@
           />
         </el-select>
         
-        <div class="flex gap-2">
-           <el-date-picker
-            v-model="filters.startDate"
-            type="date"
-            placeholder="註冊開始"
-            value-format="YYYY-MM-DD"
-            class="w-full"
-          />
-           <el-date-picker
-            v-model="filters.endDate"
-            type="date"
-            placeholder="註冊結束"
-            value-format="YYYY-MM-DD"
-            class="w-full"
-          />
-        </div>
+        <el-date-picker
+          v-model="filters.startDate"
+          type="date"
+          placeholder="註冊開始"
+          value-format="YYYY-MM-DD"
+          style="width: 150px"
+        />
         
-        <div class="flex justify-end gap-2">
-          <el-button @click="clearFilters">清除</el-button>
-          <el-button type="primary" @click="exportData">匯出 CSV</el-button>
-        </div>
+        <el-button @click="clearFilters">清除</el-button>
+        <el-button type="primary" @click="exportData">匯出 CSV</el-button>
       </div>
     </el-card>
 
@@ -62,10 +51,10 @@
             style="width: 100%"
             empty-text="暫無用戶資料"
           >
-            <el-table-column prop="id" label="ID" width="60" sortable />
+            <!-- <el-table-column prop="id" label="ID" width="60" sortable /> -->
             <el-table-column prop="username" label="用戶名" sortable />
             <el-table-column prop="name" label="姓名" sortable />
-            <el-table-column prop="email" label="Email" />
+            <el-table-column prop="email" label="Email" width="200" />
             <el-table-column prop="date_joined" label="註冊日期" sortable>
               <template #default="{ row }">
                 {{ formatDate(row.date_joined) }}
@@ -73,12 +62,12 @@
             </el-table-column>
             <el-table-column prop="role" label="角色" sortable>
               <template #default="{ row }">
-                <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'" size="small">
+                <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'primary'" size="small">
                   {{ row.role }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="points" label="積分" sortable />
+            <el-table-column prop="points" label="積分"  />
             
             <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">

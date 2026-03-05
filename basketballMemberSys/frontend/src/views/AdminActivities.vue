@@ -570,7 +570,7 @@ const loadActivities = async () => {
       dateTime: activity.date_time || activity.dateTime,
       registrations: activity.registrations || []
     }))
-    console.log('Activities loaded:', activities.value)
+    // console.log('Activities loaded:', activities.value)
   } catch (error) {
     ElMessage.error('無法加載活動：' + (error.response?.data?.detail || error.message))
   }

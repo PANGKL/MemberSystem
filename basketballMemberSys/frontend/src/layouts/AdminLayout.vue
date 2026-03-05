@@ -260,8 +260,8 @@ onUnmounted(() => {
 .user-trigger {
   display: flex;
   align-items: center;
+  font-weight: bold;
   color: white;
-  cursor: pointer;
 }
 
 .username {
