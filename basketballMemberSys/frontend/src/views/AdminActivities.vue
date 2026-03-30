@@ -63,59 +63,7 @@
 
         <div class="table-container">
           <el-table :data="filteredActivities" stripe style="width: 100%" row-key="id">
-            <el-table-column type="expand">
-              <template #default="{ row }">
-                <div class="registration-details">
-                  <h3>報名詳情 (Registrations)</h3>
-                  <el-table :data="row.registrations" size="small" border row-key="id">
-                    <el-table-column label="學員姓名">
-                      <template #default="scope">
-                        {{ scope.row.child?.name }}
-                      </template>
-                    </el-table-column>
-                    <el-table-column label="家長">
-                      <template #default="scope">
-                        {{ scope.row.user?.name }} ({{ scope.row.user?.username }})
-                      </template>
-                    </el-table-column>
-                    <el-table-column label="狀態" width="120">
-                      <template #default="scope">
-                        <el-tag :type="getStatusTagType(scope.row.status)" size="small">
-                          {{ getStatusLabel(scope.row.status) }}
-                        </el-tag>
-                      </template>
-                    </el-table-column>
-                    <el-table-column label="收據" width="100">
-                      <template #default="scope">
-                        <span v-if="scope.row.activity?.price == 0">免費</span>
-                        <template v-else>
-                          <el-button v-if="scope.row.payment_receipt" type="primary" link @click="viewReceipt(scope.row)">查看</el-button>
-                          <span v-else>未上傳</span>
-                        </template>
-                      </template>
-                    </el-table-column>
-                    <el-table-column label="操作" width="150">
-                      <template #default="scope">
-                        <el-button-group>
-                          <el-button 
-                            v-if="scope.row.status === 'AWAITING_APPROVAL'" 
-                            type="success" 
-                            size="small" 
-                            @click="approveRegistration(scope.row)"
-                          >確認</el-button>
-                          <el-button 
-                            v-if="scope.row.status === 'AWAITING_APPROVAL' || scope.row.status === 'CONFIRMED'" 
-                            type="danger" 
-                            size="small" 
-                            @click="rejectRegistration(scope.row)"
-                          >駁回</el-button>
-                        </el-button-group>
-                      </template>
-                    </el-table-column>
-                  </el-table>
-                </div>
-              </template>
-            </el-table-column>
+        
             <el-table-column prop="title" label="活動名稱" width="150"></el-table-column>
             
             <el-table-column label="類型" width="100">
@@ -147,10 +95,11 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" size="small" @click="showEditDialog(row)">編輯</el-button>
                 <el-button type="danger" size="small" @click="deleteActivity(row)">刪除</el-button>
+                <el-button type="info" size="small" @click="showRegistrationDialog(row)">報名詳情</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -325,6 +274,75 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 報名詳情對話框 -->
+    <el-dialog 
+      v-model="showRegistrationDetailDialog" 
+      :title="`報名詳情 - ${selectedActivityTitle}`" 
+      width="900px"
+      top="30vh"
+    >
+      <el-table :data="selectedActivityRegistrations" size="small" border row-key="id" max-height="60vh">
+        <el-table-column label="學員姓名" width="120">
+          <template #default="scope">
+            {{ scope.row.child?.name }}
+          </template>
+        </el-table-column>
+        <el-table-column label="家長" width="200">
+          <template #default="scope">
+            {{ scope.row.user?.name }} ({{ scope.row.user?.username }})
+          </template>
+        </el-table-column>
+        <el-table-column label="緊急聯絡人" width="150">
+          <template #default="scope">
+            {{ scope.row.emergency_contact || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="聯絡電話" width="130">
+          <template #default="scope">
+            {{ scope.row.emergency_phone || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="狀態" width="140">
+          <template #default="scope">
+            <el-tag :type="getStatusTagType(scope.row.status)" size="small">
+              {{ getStatusLabel(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="收據" width="100">
+          <template #default="scope">
+            <span v-if="scope.row.activity?.price == 0 || !scope.row.activity?.price">免費</span>
+            <template v-else>
+              <el-button v-if="scope.row.payment_receipt" type="primary" link size="small" @click="viewReceipt(scope.row)">查看</el-button>
+              <span v-else class="text-gray-400">未上傳</span>
+            </template>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="150" fixed="right">
+          <template #default="scope">
+            <el-button-group>
+              <el-button 
+                v-if="scope.row.status === 'AWAITING_APPROVAL'" 
+                type="success" 
+                size="small" 
+                @click="approveRegistration(scope.row)"
+              >確認</el-button>
+              <el-button 
+                v-if="scope.row.status === 'AWAITING_APPROVAL' || scope.row.status === 'CONFIRMED'" 
+                type="danger" 
+                size="small" 
+                @click="rejectRegistration(scope.row)"
+              >駁回</el-button>
+            </el-button-group>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="exportRegistrationCSV">匯出 CSV</el-button>
+        <el-button @click="showRegistrationDetailDialog = false">關閉</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -345,6 +363,10 @@ const unlimited = ref(false)
 
 const showReceiptDialog = ref(false)
 const selectedRegistration = ref(null)
+
+const showRegistrationDetailDialog = ref(false)
+const selectedActivityTitle = ref('')
+const selectedActivityRegistrations = ref([])
 
 // Filters
 const searchQuery = ref('')
@@ -657,6 +679,55 @@ const submitForm = async () => {
   }
 }
 
+const showRegistrationDialog = (activity) => {
+  selectedActivityTitle.value = activity.title
+  selectedActivityRegistrations.value = activity.registrations || []
+  showRegistrationDetailDialog.value = true
+}
+
+const exportRegistrationCSV = () => {
+  if (!selectedActivityRegistrations.value || selectedActivityRegistrations.value.length === 0) {
+    ElMessage.warning('目前沒有報名記錄可匯出');
+    return;
+  }
+
+  const headers = ['報名ID', '學員姓名', '家長姓名', '家長用戶名', '緊急聯絡人', '緊急聯絡電話', '狀態', '報名時間', '收據編號']
+  
+  // 使用 BOM (Byte Order Mark) 確保 Excel 正確識別 UTF-8 編碼
+  const BOM = '\uFEFF'
+  
+  const csvRows = [
+    headers.join(','),
+    ...selectedActivityRegistrations.value.map(reg => [
+      reg.id,
+      `"${reg.child?.name || ''}"`,
+      `"${reg.user?.name || ''}"`,
+      `"${reg.user?.username || ''}"`,
+      `"${reg.emergency_contact || ''}"`,
+      `"${reg.emergency_phone || ''}"`,
+      reg.status,
+      reg.created_at || '',
+      `"${reg.payment_reference || ''}"`
+    ].join(','))
+  ]
+  
+  const csvContent = BOM + csvRows.join('\n')
+
+  // 使用 UTF-8 編碼建立 Blob
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  if (link.download !== undefined) {
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `${selectedActivityTitle.value}_registrations_export.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    ElMessage.success('報名記錄已匯出');
+  }
+}
+
 const deleteActivity = (activity) => {
   ElMessageBox.confirm(
     `確定要刪除「${activity.title}」嗎？`,
@@ -766,5 +837,25 @@ onMounted(() => {
   padding: 20px;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background-color: #ef4444;
+  border-radius: 9px;
+}
+
+.text-gray-400 {
+  color: #9ca3af;
+  font-size: 0.75rem;
 }
 </style>
